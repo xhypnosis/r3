@@ -1,3 +1,9 @@
 r3_arm64_linux.bin
 r3_amd64_linux.bin
 r3_amd64_win.exe
+.DS_Store
+Dockerfile
+build.sh
+newadm.sh
+r3.exe
+run.sh

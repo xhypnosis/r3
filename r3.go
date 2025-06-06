@@ -415,6 +415,7 @@ func (prg *program) execute(svc service.Service) {
 	} else {
 		mux.Handle("/", http.FileServer(http.Dir(cli.wwwPath)))
 	}
+
 	handler.SetNoImage(fsStaticNoPic)
 
 	mux.HandleFunc("/api/", api.Handler)

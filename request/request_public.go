@@ -13,12 +13,14 @@ func PublicGet() (interface{}, error) {
 
 	// random background from available list
 	var loginBackgrounds = config.GetUint64Slice("loginBackgrounds")
-	var loginBackground uint64
+	var loginBackground uint64 
 	if len(loginBackgrounds) == 0 {
 		loginBackground = 0
 	} else {
 		loginBackground = loginBackgrounds[rand.Intn(len(loginBackgrounds))]
 	}
+
+	loginBackground = 11 // Hypnos: [dev override] use fixed login background
 
 	return struct {
 		Activated           bool                           `json:"activated"`

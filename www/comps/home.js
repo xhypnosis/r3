@@ -1,12 +1,12 @@
-import {getBuildFromVersion}           from './shared/generic.js';
-import {setSingle as setSettingSingle} from './shared/settings.js';
-import MyWidgets                       from './widgets.js';
-export {MyHome as default};
+import { getBuildFromVersion } from "./shared/generic.js";
+import { setSingle as setSettingSingle } from "./shared/settings.js";
+import MyWidgets from "./widgets.js";
+export { MyHome as default };
 
 let MyHome = {
-	name:'my-go-home',
-	components:{ MyWidgets },
-	template:`<div class="home" :class="{ showWidgets:showWidgets }">
+  name: "my-go-home",
+  components: { MyWidgets },
+  template: `<div class="home" :class="{ showWidgets:showWidgets }">
 		
 		<!-- application version -->
 		<a target="_blank" class="version"
@@ -124,81 +124,91 @@ let MyHome = {
 		<!-- login widgets -->
 		<my-widgets v-if="showWidgets" />
 	</div>`,
-	data() {
-		return {
-			installStarted:false,
-			wizardTarget:'bundle'
-		};
-	},
-	computed:{
-		noAccess:       (s) => s.noNavigation && !s.noModules,
-		noModules:      (s) => s.modules.length === 0,
-		noNavigation:   (s) => s.moduleEntries.length === 0,
-		showUpdate:     (s) => !s.isAdmin || s.versionBuildNew <= s.settings.hintUpdateVersion
-			? false : s.versionBuildNew > s.getBuildFromVersion(s.appVersion),
-		showWidgets:    (s) => !s.noAccess && !s.noModules,
-		versionBuildNew:(s) => !s.isAdmin || s.config.updateCheckVersion === ''
-			? 0 : s.getBuildFromVersion(s.config.updateCheckVersion),		
-		
-		// stores
-		activated:    (s) => s.$store.getters['local/activated'],
-		appName:      (s) => s.$store.getters['local/appName'],
-		appVersion:   (s) => s.$store.getters['local/appVersion'],
-		colorHeader:  (s) => s.$store.getters['local/companyColorHeader'],
-		modules:      (s) => s.$store.getters['schema/modules'],
-		moduleIdMap:  (s) => s.$store.getters['schema/moduleIdMap'],
-		iconIdMap:    (s) => s.$store.getters['schema/iconIdMap'],
-		capApp:       (s) => s.$store.getters.captions.home,
-		capGen:       (s) => s.$store.getters.captions.generic,
-		config:       (s) => s.$store.getters.config,
-		isAdmin:      (s) => s.$store.getters.isAdmin,
-		isMobile:     (s) => s.$store.getters.isMobile,
-		moduleEntries:(s) => s.$store.getters.moduleEntries,
-		pwaModuleId:  (s) => s.$store.getters.pwaModuleId,
-		settings:     (s) => s.$store.getters.settings
-	},
-	mounted() {
-		this.$store.commit('pageTitle',this.capApp.title);
-		
-		// forward to PWA if enabled
-		if(this.pwaModuleId !== null) {
-			let mod = this.moduleIdMap[this.pwaModuleId];
-			let modParent = mod.parentId !== null
-				? this.moduleIdMap[mod.parentId] : mod;
-			
-			this.$router.replace(`/app/${modParent.name}/${mod.name}`);
-		}
-	},
-	methods:{
-		// externals
-		getBuildFromVersion,
-		setSettingSingle,
-		
-		// actions
-		installPackage() {
-			ws.send('package','install',{},true).then(
-				() => {},
-				this.$root.genericError
-			);
-			this.installStarted = true;
-		},
-		showHelp(top,body) {
-			this.$store.commit('dialog',{
-				captionBody:body,
-				captionTop:top,
-				image:'question.png',
-				textDisplay:'richtext',
-				width:900,
-				buttons:[{
-					caption:this.capGen.button.cancel,
-					image:'cancel.png'
-				}]
-			});
-		},
-		
-		// routing
-		goToApps()   { this.$router.push('/admin/modules'); },
-		goToLogins() { this.$router.push('/admin/logins'); },
-		goToRepo()   { this.$router.push('/admin/repo'); }
-	}
+  data() {
+    return {
+      installStarted: false,
+      wizardTarget: "bundle",
+    };
+  },
+  computed: {
+    noAccess: (s) => s.noNavigation && !s.noModules,
+    noModules: (s) => s.modules.length === 0,
+    noNavigation: (s) => s.moduleEntries.length === 0,
+    //  Hypnos: 关闭更新通知
+    // showUpdate:     (s) => !s.isAdmin || s.versionBuildNew <= s.settings.hintUpdateVersion
+    // 	? false : s.versionBuildNew > s.getBuildFromVersion(s.appVersion),
+    showWidgets: (s) => !s.noAccess && !s.noModules,
+    versionBuildNew: (s) =>
+      !s.isAdmin || s.config.updateCheckVersion === ""
+        ? 0
+        : s.getBuildFromVersion(s.config.updateCheckVersion),
+    showUpdate: () => false,
+
+    // stores
+    activated: (s) => s.$store.getters["local/activated"],
+    appName: (s) => s.$store.getters["local/appName"],
+    appVersion: (s) => s.$store.getters["local/appVersion"],
+    colorHeader: (s) => s.$store.getters["local/companyColorHeader"],
+    modules: (s) => s.$store.getters["schema/modules"],
+    moduleIdMap: (s) => s.$store.getters["schema/moduleIdMap"],
+    iconIdMap: (s) => s.$store.getters["schema/iconIdMap"],
+    capApp: (s) => s.$store.getters.captions.home,
+    capGen: (s) => s.$store.getters.captions.generic,
+    config: (s) => s.$store.getters.config,
+    isAdmin: (s) => s.$store.getters.isAdmin,
+    isMobile: (s) => s.$store.getters.isMobile,
+    moduleEntries: (s) => s.$store.getters.moduleEntries,
+    pwaModuleId: (s) => s.$store.getters.pwaModuleId,
+    settings: (s) => s.$store.getters.settings,
+  },
+  mounted() {
+    this.$store.commit("pageTitle", this.capApp.title);
+
+    // forward to PWA if enabled
+    if (this.pwaModuleId !== null) {
+      let mod = this.moduleIdMap[this.pwaModuleId];
+      let modParent =
+        mod.parentId !== null ? this.moduleIdMap[mod.parentId] : mod;
+
+      this.$router.replace(`/app/${modParent.name}/${mod.name}`);
+    }
+  },
+  methods: {
+    // externals
+    getBuildFromVersion,
+    setSettingSingle,
+
+    // actions
+    installPackage() {
+      ws.send("package", "install", {}, true).then(() => {},
+      this.$root.genericError);
+      this.installStarted = true;
+    },
+    showHelp(top, body) {
+      this.$store.commit("dialog", {
+        captionBody: body,
+        captionTop: top,
+        image: "question.png",
+        textDisplay: "richtext",
+        width: 900,
+        buttons: [
+          {
+            caption: this.capGen.button.cancel,
+            image: "cancel.png",
+          },
+        ],
+      });
+    },
+
+    // routing
+    goToApps() {
+      this.$router.push("/admin/modules");
+    },
+    goToLogins() {
+      this.$router.push("/admin/logins");
+    },
+    goToRepo() {
+      this.$router.push("/admin/repo");
+    },
+  },
 };

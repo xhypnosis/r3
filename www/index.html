@@ -19,7 +19,47 @@
 		<link rel="stylesheet" type="text/css" href="styles.css?build=REPLACE_BY_BUILD" />
 	</head>
 	<body>
+
+		<script>
+			function acceptDisclaimer() {
+				// 隐藏 disclaimer
+				document.getElementById('disclaimer').style.display = 'none';
+
+				// 显示 Vue 应用挂载点（如果你默认设置为隐藏）
+				document.getElementById('app-mount').style.display = 'block';
+
+				// 创建 <script> 标签加载 Vue 应用
+				const s = document.createElement('script');
+				s.type = 'module';
+				s.src = 'scripts.js?build=REPLACE_BY_BUILD';
+				document.body.appendChild(s);
+			}
+
+			function rejectDisclaimer() {
+				history.back(); // 或者你也可以改成 location.href = "https://example.com"
+			}
+		</script>
+
+		<div id="disclaimer">
+			<div id="disclaimer-content">
+				<div id="disclaimer-box">
+					<h2>WARNING: U.S. FEDERAL GOVERNMENT INFORMATION SYSTEM</h2>
+					<p>
+						You are accessing a U.S. Government Information System intended to be solely accessed by authorized individual users only.<br><br>
+						System usage is monitored, recorded, and subject to audit. By accessing and using this information system, you are consenting to system monitoring and recording, and are agreeing that any communications or data on this information system, in-transit or stored, may be disclosed for law enforcement and other lawful purposes.<br><br>
+						Unauthorized or improper use of this information system is strictly prohibited and may be subject to state and federal criminal prosecution and penalties, as well as civil penalties, which may result in fines and imprisonment.
+					</p>
+				</div>
+				<div id="disclaimer-footer">
+					<button class="reject" onclick="rejectDisclaimer()">Reject</button>
+					<button class="accept" onclick="acceptDisclaimer()">Accept</button>
+				</div>
+			</div>
+		</div>
+
+
 		<main id="app-mount"></main>
+
 
 		<!-- load external scripts -->
 		<script type="text/javascript" src="externals/ace/ace.js"></script>
@@ -39,6 +79,9 @@
 
 		<!-- load application -->
 		<script type="text/javascript" src="websocket.js?build=REPLACE_BY_BUILD"></script>
-		<script type="module" src="scripts.js?build=REPLACE_BY_BUILD"></script>
+
+		<!-- 延迟加载 Vue 应用：用户接受 disclaimer 后才加载 -->
+		<!-- <script type="module" src="scripts.js?build=REPLACE_BY_BUILD"></script> -->
+
 	</body>
 </html>

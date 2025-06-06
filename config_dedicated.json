@@ -1,14 +1,14 @@
 {
 	"cluster": {
-		"nodeId": ""
+		"nodeId": "b0bd194c-e783-4d33-9102-1b122d7bb2df"
 	},
 	"db": {
-		"embedded": false,
-		"host": "localhost",
+		"host": "host.docker.internal",
 		"port": 5432,
-		"name": "app",
-		"user": "app",
-		"pass": "app",
+		"name": "rei3db",
+		"user": "rei3",
+		"pass": "rei3pass",
+		"embedded": false,
 		"ssl": false,
 		"sslSkipVerify": false,
 		"connsMax": 0,
@@ -28,7 +28,7 @@
 		"cert": "cert.crt",
 		"key": "cert.key",
 		"listen": "0.0.0.0",
-		"port": 443,
-		"tlsMinVersion":"1.2"
+		"port": 8080,
+		"tlsMinVersion": "1.2"
 	}
 }
