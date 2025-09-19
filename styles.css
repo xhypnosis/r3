@@ -1,0 +1,94 @@
+@import url("comps/app.css");
+@import url("comps/articles.css");
+@import url("comps/button.css");
+@import url("comps/calendar.css");
+@import url("comps/captionMap.css");
+@import url("comps/columnBatch.css");
+@import url("comps/field.css");
+@import url("comps/filters.css");
+@import url("comps/form.css");
+@import url("comps/gantt.css");
+@import url("comps/header.css");
+@import url("comps/home.css");
+@import url("comps/input.css");
+@import url("comps/inputFiles.css");
+@import url("comps/kanban.css");
+@import url("comps/list.css");
+@import url("comps/login.css");
+@import url("comps/menu.css");
+@import url("comps/settings.css");
+@import url("comps/tabs.css");
+@import url("comps/valueRich.css");
+@import url("comps/widgets.css");
+@import url("comps/admin/admin.css");
+@import url("comps/builder/builder.css");
+@import url("comps/builder/builderForm.css");
+
+/* ==================== US GOVERNMENT DISCLAIMER ==================== */
+
+#disclaimer {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at top, #224766, #1b2d3e);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  font-family: system-ui, sans-serif;
+}
+
+#disclaimer-content {
+  background-color: #1d3557;
+  border-radius: 10px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.4);
+  max-width: 900px;
+  width: 90%;
+  overflow: hidden;
+}
+
+#disclaimer-box {
+  padding: 2rem 2.5rem;
+  color: white;
+}
+
+#disclaimer-box h2 {
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+}
+
+#disclaimer-box p {
+  text-align: left;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+#disclaimer-footer {
+  background-color: #2c3e50;
+  padding: 1rem 2.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+#disclaimer-footer button {
+  padding: 0.6rem 1.5rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#disclaimer-footer .accept {
+  background-color: white;
+  color: #1d3557;
+}
+
+#disclaimer-footer .reject {
+  background-color: transparent;
+  color: #ccc;
+  border: 1px solid #999;
+}

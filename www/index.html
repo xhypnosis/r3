@@ -22,13 +22,13 @@
 
 		<script>
 			function acceptDisclaimer() {
-				// 隐藏 disclaimer
+				// Hide disclaimer
 				document.getElementById('disclaimer').style.display = 'none';
 
-				// 显示 Vue 应用挂载点（如果你默认设置为隐藏）
+				// Show Vue app mount point (if you set it to hidden by default)
 				document.getElementById('app-mount').style.display = 'block';
 
-				// 创建 <script> 标签加载 Vue 应用
+				// Create <script> tag to load Vue app
 				const s = document.createElement('script');
 				s.type = 'module';
 				s.src = 'scripts.js?build=REPLACE_BY_BUILD';
@@ -36,7 +36,7 @@
 			}
 
 			function rejectDisclaimer() {
-				history.back(); // 或者你也可以改成 location.href = "https://example.com"
+				history.back();
 			}
 		</script>
 
@@ -79,9 +79,6 @@
 
 		<!-- load application -->
 		<script type="text/javascript" src="websocket.js?build=REPLACE_BY_BUILD"></script>
-
-		<!-- Hypnos: 延迟加载 Vue 应用：用户接受 disclaimer 后才加载 -->
-		<!-- <script type="module" src="scripts.js?build=REPLACE_BY_BUILD"></script> -->
 
 	</body>
 </html>
