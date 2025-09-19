@@ -2,12 +2,11 @@ import MyArticles                    from './articles.js';
 import MyField                       from './field.js';
 import MyFormActions                 from './formActions.js';
 import MyFormLog                     from './formLog.js';
-import {hasAccessToRelation}         from './shared/access.js';
 import {getAttributeFileVersionHref} from './shared/attribute.js';
 import {getCollectionValues}         from './shared/collection.js';
+import {getColumnsProcessed}         from './shared/column.js';
 import {dialogCloseAsk}              from './shared/dialog.js';
 import {consoleError}                from './shared/error.js';
-import {getFieldOverwritesDefault}   from './shared/field.js';
 import {jsFunctionRun}               from './shared/jsFunction.js';
 import {srcBase64}                   from './shared/image.js';
 import {getCaption}                  from './shared/language.js';
@@ -30,7 +29,10 @@ import {
 	rsaEncrypt
 } from './shared/crypto.js';
 import {
-	checkDataOptions,
+	getFieldOverwriteDefault,
+	getFieldProcessedDefault
+} from './shared/field.js';
+import {
 	filterIsCorrect,
 	filterOperatorIsSingleValue,
 	openLink
@@ -54,9 +56,8 @@ import {
 	variableValueGet,
 	variableValueSet
 } from './shared/variable.js';
-export {MyForm as default};
 
-let MyForm = {
+export default {
 	name:'my-form',
 	components:{
 		MyArticles,
@@ -76,8 +77,10 @@ let MyForm = {
 		>
 			<my-form ref="popUpForm"
 				@close="closePopUp"
-				@record-deleted="popUpRecordChanged('deleted',$event)"
-				@record-updated="popUpRecordChanged('updated',$event)"
+				@pop-up-replace="popUpReplace"
+				@refresh-parent="popUpFormUpdate('nothing',null)"
+				@record-deleted="popUpFormUpdate('deleted',$event)"
+				@record-updated="popUpFormUpdate('updated',$event)"
 				@records-open="popUp.recordIds = $event"
 				:attributeIdMapDef="popUp.attributeIdMapDef"
 				:formId="popUp.formId"
@@ -98,9 +101,9 @@ let MyForm = {
 			<div class="top nowrap" :class="{ lower:!hasBarLower && !isSingleField }" v-if="!isWidget">
 				<div class="area nowrap form-title-wrap">
 					<my-button image="upward.png"
-						v-if="hasGoBack"
+						v-if="buttonGoBackShown"
 						@trigger="openPrevAsk"
-						:active="!updatingRecord"
+						:active="buttonGoBackUsable"
 						:captionTitle="capGen.button.goBack"
 					/>
 					<img class="icon" :src="iconSrc" />
@@ -117,8 +120,8 @@ let MyForm = {
 					@execute-function="jsFunctionRun($event,[],exposedFunctions)"
 					:entityIdMapEffect="entityIdMapEffect"
 					:formActions="form.actions"
-					:formId="formId"
-					:moduleId="moduleId"
+					:formId
+					:moduleId
 					:noSpace="!layoutElements.includes('formActions')"
 				/>
 				
@@ -134,7 +137,7 @@ let MyForm = {
 						/>
 						<my-button image="time.png"
 							v-if="hasLog"
-							@trigger="showLog = !showLog"
+							@trigger="toggleLog"
 							:active="!isNew"
 							:captionTitle="capApp.button.logHint"
 						/>
@@ -154,7 +157,7 @@ let MyForm = {
 					/>
 					<my-button image="question.png"
 						v-if="hasHelp"
-						@trigger="showHelp = !showHelp"
+						@trigger="toggleHelp"
 						:active="helpAvailable"
 						:captionTitle="capApp.button.helpHint"
 					/>
@@ -183,27 +186,21 @@ let MyForm = {
 			<div class="top lower nowrap" v-if="hasBarLower">
 				<div class="area nowrap">
 					<my-button image="new.png"
-						v-if="buttonShownNew"
+						v-if="buttonNewShown"
 						@trigger="openNewAsk(false)"
 						@trigger-middle="openNewAsk(true)"
-						:active="buttonActiveNew"
+						:active="buttonNewUsable"
 						:caption="layoutElements.includes('dataActionLabels') ? capGen.button.new : ''"
 						:captionTitle="capGen.button.newHint"
 					/>
-					<my-button image="save.png" alt-image="add.png"
-						v-if="buttonShownSave"
-						@trigger="set(false)"
-						@trigger-alt="set(true)"
-						:active="buttonActiveSave"
-						:altAction="!isMobile && allowNew && canCreate"
-						:altCaptionTitle="capGen.button.saveNewHint"
-						:caption="layoutElements.includes('dataActionLabels') ? capGen.button.save : ''"
-						:captionTitle="capGen.button.saveHint"
+					<my-button-group
+						v-if="buttonSaveShown"
+						:group="buttonGroupSave"
 					/>
 					<my-button image="save.png"
-						v-if="buttonShownSaveBulk"
+						v-if="buttonSaveShownBulk"
 						@trigger="setBulkUpdate"
-						:active="buttonActiveSaveBulk"
+						:active="buttonSaveUsableBulk"
 						:caption="layoutElements.includes('dataActionLabels') ? capGen.button.saveBulk.replace('{COUNT}',String(recordIds.length)) : ''"
 						:captionTitle="capGen.button.saveHint"
 					/>
@@ -224,19 +221,15 @@ let MyForm = {
 					@execute-function="jsFunctionRun($event,[],exposedFunctions)"
 					:entityIdMapEffect="entityIdMapEffect"
 					:formActions="form.actions"
-					:formId="formId"
-					:moduleId="moduleId"
+					:formId
+					:moduleId
 					:noSpace="!layoutElements.includes('formActions')"
 				/>
 				<div class="form-bar-layout-check" ref="formBarLowerCheck" />
 				<div class="area">
-					<my-button image="shred.png"
-						v-if="buttonShownDel"
-						@trigger="delAsk"
-						:active="buttonActiveDel"
-						:cancel="true"
-						:caption="layoutElements.includes('dataActionLabels') ? capGen.button.delete : ''"
-						:captionTitle="capGen.button.deleteHint"
+					<my-button-group
+						v-if="buttonDelShown"
+						:group="buttonGroupDelete"
 					/>
 				</div>
 			</div>
@@ -247,8 +240,8 @@ let MyForm = {
 					@execute-function="jsFunctionRun($event,[],exposedFunctions)"
 					:entityIdMapEffect="entityIdMapEffect"
 					:formActions="form.actions"
-					:formId="formId"
-					:moduleId="moduleId"
+					:formId
+					:moduleId
 					:noSpace="false"
 				/>
 			</div>
@@ -262,31 +255,31 @@ let MyForm = {
 					v-for="(f,i) in fields"
 					@clipboard="messageSet('[CLIPBOARD]')"
 					@execute-function="jsFunctionRun($event,[],exposedFunctions)"
-					@hotkey="handleHotkeys"
 					@open-form="openForm"
 					@set-form-args="setFormArgs"
 					@set-touched="fieldSetTouched"
 					@set-valid="fieldSetValid"
 					@set-value="valueSetByField"
-					:isBulkUpdate="isBulkUpdate"
-					:dataFieldMap="fieldIdMapData"
-					:entityIdMapEffect="entityIdMapEffect"
+					:isBulkUpdate
+					:entityIdMapEffect
 					:favoriteId="favoriteId"
 					:field="f"
-					:fieldIdsChanged="fieldIdsChanged"
-					:fieldIdsInvalid="fieldIdsInvalid"
-					:fieldIdsTouched="fieldIdsTouched"
-					:fieldIdMapOverwrite="fieldIdMapOverwrite"
+					:fieldIdsChanged
+					:fieldIdsInvalid
+					:fieldIdsTouched
+					:fieldIdMapOverwrite
+					:fieldIdMapOptions
+					:fieldIdMapProcessed
 					:formBadSave="badSave"
+					:formBlockInputs="blockInputs"
 					:formIsEmbedded="isPopUp || isWidget"
 					:formLoading="loading"
-					:formReadonly="isReadonly || blockInputs"
 					:isAloneInForm="isSingleField"
-					:joinsIndexMap="joinsIndexMap"
+					:joinsIndexMap
 					:key="f.id"
 					:moduleId="moduleId"
 					:values="values"
-					:variableIdMapLocal="variableIdMapLocal"
+					:variableIdMapLocal
 				/>
 			</div>
 		</div>
@@ -294,32 +287,29 @@ let MyForm = {
 		<!-- form change logs -->
 		<my-form-log
 			v-if="showLog"
-			@close-log="showLog = false"
-			:dataFieldMap="fieldIdMapData"
-			:entityIdMapEffect="entityIdMapEffect"
-			:form="form"
+			@close-log="toggleLog"
+			:entityIdMapEffect
+			:fieldIdMapData
+			:fieldIdMapProcessed
 			:formLoading="loading"
-			:isPopUp="isPopUp"
-			:isPopUpFloating="isPopUpFloating"
-			:indexMapRecordKey="indexMapRecordKey"
-			:joinsIndexMap="joinsIndexMap"
-			:moduleId="moduleId"
-			:values="values"
-			:variableIdMapLocal="variableIdMapLocal"
+			:isPopUpFloating
+			:indexMapRecordKey
+			:joinsIndexMap
+			:moduleId
+			:values
+			:variableIdMapLocal
 		/>
 		
 		<!-- form help articles -->
 		<my-articles class="form-help"
 			v-if="showHelp"
-			@close="showHelp = false"
+			@close="toggleHelp"
 			:form="form"
 			:isFloat="isPopUpFloating"
 			:moduleId="moduleId"
 		/>
 	</div>`,
 	props:{
-		allowDel:         { type:Boolean, required:false, default:true },
-		allowNew:         { type:Boolean, required:false, default:true },
 		attributeIdMapDef:{ type:Object,  required:false, default:() => {return {};} }, // map of attribute default values
 		favoriteId:       { required:false, default:null },
 		formId:           { type:String,  required:true },
@@ -329,9 +319,11 @@ let MyForm = {
 		isPopUpFloating:  { type:Boolean, required:false, default:false }, // this form is a floating pop-up
 		isWidget:         { type:Boolean, required:false, default:false },
 		moduleId:         { type:String,  required:true },
-		recordIds:        { type:Array,   required:true } // to be handled records, [] is new
+		recordIds:        { type:Array,   required:true },                 // to be handled records, [] is new
+		showButtonDel:    { type:Boolean, required:false, default:true },
+		showButtonNew:    { type:Boolean, required:false, default:true }
 	},
-	emits:['close','record-deleted','record-updated','records-open'],
+	emits:['close','pop-up-replace','record-deleted','record-updated','records-open','refresh-parent'],
 	mounted() {
 		this.$watch('appResized',() => this.resized());
 		this.$watch(() => [this.favoriteId,this.formId,this.recordIds],this.reset,{
@@ -342,15 +334,14 @@ let MyForm = {
 			this.$store.commit('routingGuardAdd',this.routingGuard);
 		
 		window.addEventListener('keydown',this.handleHotkeys);
-		window.addEventListener('keyup',this.handleHotkeys);
 		this.resized(null,0);
+		this.$store.commit('dropdownElm',null);
 	},
 	unmounted() {
 		if(!this.isWidget)
 			this.$store.commit('routingGuardDel',this.routingGuard);
 		
 		window.removeEventListener('keydown',this.handleHotkeys);
-		window.removeEventListener('keyup',this.handleHotkeys);
 		this.timerClearAll();
 	},
 	data() {
@@ -359,6 +350,7 @@ let MyForm = {
 			badLoad:false,          // attempted record load with no return (can happen if access is lost during save)
 			badSave:false,          // attempted save (data SET) with invalid fields, also updates data fields
 			blockInputs:false,      // disable all user inputs (used by frontend functions)
+			changingRecord:false,   // form is currently attempting to change the current record (saving/deleting)
 			firstLoad:true,         // form was not used before
 			lastFormId:'',          // when routing occurs: if ID is the same, no need to rebuild form
 			layoutCheckTimer:null,  // layout resize timer
@@ -378,7 +370,6 @@ let MyForm = {
 			showHelp:false,         // show form context help
 			showLog:false,          // show data change log
 			titleOverwrite:null,    // custom form title, can be set via frontend function
-			updatingRecord:false,   // form is currently attempting to update the current record (saving/deleting)
 			
 			// form data
 			fieldIdsInvalid:[],           // field IDs with invalid values
@@ -464,94 +455,132 @@ let MyForm = {
 
 			// apply default values, set for attributes (usually via getters/arguments)
 			for(let k in out) {
-				const ia = s.getDetailsFromIndexAttributeId(k);
+				const d = s.getDetailsFromIndexAttributeId(k);
 				
-				if(s.attributeIdMapDef[ia.attributeId] !== undefined) {
-					out[k] = ia.outsideIn && s.isAttributeRelationshipN1(s.attributeIdMap[ia.attributeId].content)
-						? [s.attributeIdMapDef[ia.attributeId]] : s.attributeIdMapDef[ia.attributeId];
+				if(s.attributeIdMapDef[d.attributeId] !== undefined) {
+					out[k] = d.outsideIn && s.isAttributeRelationshipN1(s.attributeIdMap[d.attributeId].content)
+						? [s.attributeIdMapDef[d.attributeId]] : s.attributeIdMapDef[d.attributeId];
 				}
 				
-				if(s.attributeIdMapDef[ia.attributeIdNm] !== undefined)
-					out[k] = [s.attributeIdMapDef[ia.attributeIdNm]];
+				if(s.attributeIdMapDef[d.attributeIdNm] !== undefined)
+					out[k] = [s.attributeIdMapDef[d.attributeIdNm]];
 			}
 			return out;
 		},
 
-		bgStyle:(s) => s.isPopUp || s.isWidget ? '' : `background-color:${s.colorMenu.toString()};`,
-		canCreate:(s) => !s.updatingRecord
-			&& s.joins.length !== 0
-			&& s.joins[0].applyCreate
-			&& s.checkDataOptions(4,s.entityIdMapEffect.form.data)
-			&& s.hasAccessToRelation(s.access,s.joins[0].relationId,2),
-		canDelete:(s) => !s.updatingRecord
-			&& !s.isNew
-			&& !s.badLoad
-			&& s.joinsIndexesDel.length !== 0
-			&& s.checkDataOptions(1,s.entityIdMapEffect.form.data)
-			&& s.relationIdMap[s.joins[0].relationId].presets.filter(v => v.protected && s.recordIds.includes(s.presetIdMapRecordId[v.id])).length === 0,
-		canUpdate:     (s) => !s.updatingRecord && !s.isReadonly,
+		// simple
+		bgStyle:       (s) => s.isPopUp || s.isWidget ? '' : `background-color:${s.colorMenu.toString()};`,
 		hasBarLower:   (s) => !s.isWidget && s.isData && !s.form.noDataActions,
 		hasBarWidget:  (s) => s.isWidget && s.hasFormActions,
 		hasChanges:    (s) => s.fieldIdsChanged.length !== 0,
 		hasChangesBulk:(s) => s.fieldIdsTouched.length !== 0 && s.isBulkUpdate,
 		hasFormActions:(s) => s.form.actions.filter(v => (s.entityIdMapEffect.formAction[v.id]?.state !== undefined ? s.entityIdMapEffect.formAction[v.id].state : v.state) !== 'hidden').length > 0,
-		hasGoBack:     (s) => s.isData && !s.isMobile && !s.isPopUp,
 		helpAvailable: (s) => s.form.articleIdsHelp.length !== 0 || s.moduleIdMap[s.moduleId].articleIdsHelp.length !== 0,
 		isBulkUpdate:  (s) => s.isData && s.recordIds.length > 1,
 		isData:        (s) => s.relationId !== null,
 		isNew:         (s) => s.recordIds.length === 0,
-		isReadonly:    (s) => s.badLoad || !s.checkDataOptions((s.isNew ? 4 : 2),s.entityIdMapEffect.form.data),
 		isSingleField: (s) => s.fields.length === 1 && ['calendar','chart','kanban','list','tabs','variable'].includes(s.fields[0].content),
 		menuActive:    (s) => s.formIdMapMenu[s.form.id] === undefined ? null : s.formIdMapMenu[s.form.id],
 		warnUnsaved:   (s) => s.hasChanges && !s.form.noDataActions && !s.blockInputs && s.settings.warnUnsaved,
 
+		// permissions
+		mayCreate:(s) => !s.badLoad && s.joinsIndexesCrt.length !== 0,
+		mayDelete:(s) => !s.badLoad && s.joinsIndexesDel.length !== 0,
+		mayNew:   (s) => !s.badLoad && s.joinsIndexesNew.length !== 0,
+		mayUpdate:(s) => !s.badLoad && s.joinsIndexesSet.length !== 0,
+
 		// buttons
-		buttonActiveDel:     (s) => !s.blockInputs  && s.canDelete,
-		buttonActiveNew:     (s) => !s.blockInputs  && s.canCreate && (!s.isNew || s.hasChanges),
-		buttonActiveSave:    (s) => !s.blockInputs  && s.canUpdate && s.hasChanges,
-		buttonActiveSaveBulk:(s) => !s.blockInputs  && s.canUpdate && s.hasChangesBulk,
-		buttonShownDel:      (s) => !s.isBulkUpdate && s.allowDel  && (s.buttonActiveDel || s.layoutElements.includes('dataActionReadonly')),
-		buttonShownNew:      (s) => !s.isBulkUpdate && s.allowNew  && (s.buttonActiveNew || s.layoutElements.includes('dataActionReadonly')),
-		buttonShownSave:     (s) => !s.isBulkUpdate && (s.buttonActiveSave     || s.layoutElements.includes('dataActionReadonly')),
-		buttonShownSaveBulk: (s) => s.isBulkUpdate  && (s.buttonActiveSaveBulk || s.layoutElements.includes('dataActionReadonly')),
+		buttonDelShown:      (s) => !s.isBulkUpdate && s.showButtonDel && (s.buttonDelUsable || s.layoutElements.includes('dataActionReadonly')),
+		buttonDelUsable:     (s) => !s.buttonsReadonly && s.mayDelete,
+		buttonGoBackShown:   (s) => s.isData && !s.isMobile && !s.isPopUp,
+		buttonGoBackUsable:  (s) => !s.buttonsReadonly && !s.isAtHistoryStart,
+		buttonNewShown:      (s) => !s.isBulkUpdate && s.showButtonNew && (s.buttonNewUsable || s.layoutElements.includes('dataActionReadonly')),
+		buttonNewUsable:     (s) => !s.buttonsReadonly && s.mayNew && (!s.isNew || s.hasChanges),
+		buttonSaveShown:     (s) => !s.isBulkUpdate && (s.buttonSaveUsable     || s.layoutElements.includes('dataActionReadonly')),
+		buttonSaveShownBulk: (s) => s.isBulkUpdate  && (s.buttonSaveUsableBulk || s.layoutElements.includes('dataActionReadonly')),
+		buttonSaveShownClose:(s) => s.buttonSaveShown && !s.isAtHistoryStart && !s.isMobile,
+		buttonSaveShownNew:  (s) => s.buttonSaveShown && s.buttonNewShown && !s.isMobile,
+		buttonSaveUsable:    (s) => !s.buttonsReadonly && (s.mayUpdate || s.mayCreate)    && s.hasChanges,
+		buttonSaveUsableBulk:(s) => !s.buttonsReadonly && (s.mayUpdate || s.isBulkUpdate) && s.hasChangesBulk,
+		buttonsReadonly:     (s) => s.blockInputs || s.changingRecord,
 
 		// general entities
-		formStateIdMap: (s) => s.getFormStateIdMap(s.form.states),
 		fieldIdMapData: (s) => s.getDataFieldMap(s.fields),
 		fields:         (s) => s.form.fields,
 		filters:        (s) => s.form.query.filters,
 		form:           (s) => s.formIdMap[s.formId],
+		formStateIdMap: (s) => s.getFormStateIdMap(s.form.states),
 		joins:          (s) => s.fillRelationRecordIds(s.form.query.joins),
 		relationId:     (s) => s.form.query.relationId,
 		relationsJoined:(s) => s.getRelationsJoined(s.joins),
-		joinsIndexMap:  (s) => s.getJoinIndexMapExpanded(s.joins,s.indexMapRecordId,s.indexesNoDel,s.indexesNoSet),
-		joinsIndexesDel:(s) => {
-			let out = [];
-			for(let k in s.joinsIndexMap) {
-				const join = s.joinsIndexMap[k];
-				
-				if(join.applyDelete && !join.recordNoDel && join.recordId !== 0
-					&& s.hasAccessToRelation(s.access,join.relationId,3)) {
-					
-					out.push(join);
-				}
-			}
-			return out;
-		},
+		joinsIndexMap:  (s) => s.getJoinIndexMapExpanded(s.joins,s.indexMapRecordId,s.indexesNoDel,s.indexesNoSet,s.entityIdMapEffect.form.data),
+		joinsIndexesCrt:(s) => { return Object.values(s.joinsIndexMap).filter(v => v.recordCreate); },
+		joinsIndexesDel:(s) => { return Object.values(s.joinsIndexMap).filter(v => v.recordDelete); },
+		joinsIndexesNew:(s) => { return Object.values(s.joinsIndexMap).filter(v => v.recordNew); },
+		joinsIndexesSet:(s) => { return Object.values(s.joinsIndexMap).filter(v => v.recordUpdate); },
 		iconSrc:(s) => {
-			if(s.favoriteId !== null)
-				return 'images/star1.png';
+			if(s.favoriteId  !== null) return 'images/star1.png';
+			if(s.form.iconId !== null) return s.srcBase64(s.iconIdMap[s.form.iconId].file);
+			
+			return s.menuActive !== null && s.menuActive.iconId !== null && s.menuActive.formId === s.form.id
+				? s.srcBase64(s.iconIdMap[s.menuActive.iconId].file)
+				: 'images/fileText.png';
+		},
+		fieldIdMapOptions:(s) => {
+			const base = s.isMobile ? s.loginOptionsMobile : s.loginOptions;
+			if(s.favoriteId === null)
+				return base.fieldIdMap;
 
-			if(s.form.iconId !== null)
-				return s.srcBase64(s.iconIdMap[s.form.iconId].file);
-			
-			if(s.menuActive !== null && s.menuActive.iconId !== null && s.menuActive.formId === s.form.id)
-				return s.srcBase64(s.iconIdMap[s.menuActive.iconId].file);
-			
-			return 'images/fileText.png';
+			return base.favoriteIdMap[s.favoriteId]?.fieldIdMap === undefined ? {} : base.favoriteIdMap[s.favoriteId].fieldIdMap;
 		},
 		
 		// presentation
+		buttonGroupDelete:(s) => {
+			let group = [{
+				caption:s.layoutElements.includes('dataActionLabels') ? s.capGen.button.delete : '',
+				captionTitle:s.capGen.button.deleteHint,
+				image:'shred.png',
+				isCancel:true,
+				isReadonly:!s.buttonDelUsable,
+				onClickLeft:() => s.delAsk(false)
+			}];
+			if(!s.isMobile) {
+				group.push({
+					captionTitle:s.capGen.button.deleteNewHint,
+					image:'add2.png',
+					isCancel:true,
+					isReadonly:!s.buttonDelUsable,
+					onClickLeft:() => s.delAsk(true)
+				});
+			}
+			return group;
+		},
+		buttonGroupSave:(s) => {
+			let group = [{
+				caption:s.layoutElements.includes('dataActionLabels') ? s.capGen.button.save : '',
+				captionTitle:s.capGen.button.saveHint,
+				image:'save.png',
+				isReadonly:!s.buttonSaveUsable,
+				onClickLeft:() => s.set(false,false)
+			}];
+			if(s.buttonSaveShownClose) {
+				group.push({
+					captionTitle:s.capGen.button.saveCloseHint,
+					image:'ok.png',
+					isReadonly:!s.buttonSaveUsable,
+					onClickLeft:() => s.set(false,true)
+				});
+			}
+			if(s.buttonSaveShownNew) {
+				group.push({
+					captionTitle:s.capGen.button.saveNewHint,
+					image:'add2.png',
+					isReadonly:!s.buttonSaveUsable,
+					onClickLeft:() => s.set(true,false)
+				});
+			}
+			return group;
+		},
 		title:(s) => {
 			if(s.titleOverwrite !== null)
 				return s.titleOverwrite;
@@ -596,15 +625,16 @@ let MyForm = {
 					},[],newTab,null,replace);
 					s.recordActionFree = false;
 				},
+				form_parent_refresh:() => s.$emit('refresh-parent'),
 				form_set_title:(v) => s.titleOverwrite = v,
 				form_show_message:s.messageSet,
 				
 				// record functions
-				record_delete:  () => { s.delAsk();     s.recordActionFree = false; },
-				record_new:     () => { s.openNewAsk(); s.recordActionFree = false; },
-				record_reload:  () => { s.get();        s.recordActionFree = false; },
-				record_save:    () => { s.set(false);   s.recordActionFree = false; },
-				record_save_new:() => { s.set(true);    s.recordActionFree = false; },
+				record_delete:  () => { s.delAsk(false);    s.recordActionFree = false; },
+				record_new:     () => { s.openNewAsk();     s.recordActionFree = false; },
+				record_reload:  () => { s.get();            s.recordActionFree = false; },
+				record_save:    () => { s.set(false,false); s.recordActionFree = false; },
+				record_save_new:() => { s.set(true,false);  s.recordActionFree = false; },
 				
 				// timeout/interval function calls
 				timer_clear:s.timerClear,
@@ -632,7 +662,7 @@ let MyForm = {
 				
 				// field manipulation
 				get_field_value:(fieldId) => s.fieldIdMapData[fieldId] === undefined
-					? undefined : s.values[s.getIndexAttributeIdByField(s.fieldIdMapData[fieldId],false)],
+					? undefined : JSON.parse(JSON.stringify(s.values[s.getIndexAttributeIdByField(s.fieldIdMapData[fieldId],false)])),
 				get_field_value_changed:(fieldId) => s.fieldIdsChanged.includes(fieldId),
 				get_field_file_links:(fieldId) => {
 					const fld = s.fieldIdMapData[fieldId];
@@ -692,20 +722,23 @@ let MyForm = {
 		entityIdMapEffect:(s) => {
 			const getValueFromConditionSide = (side,operator,recursionLevel) => {
 				switch(side.content) {
-					case 'collection':   return getCollectionValues(side.collectionId,side.columnId,s.filterOperatorIsSingleValue(operator)); break;
-					case 'field':        return s.values[s.getIndexAttributeIdByField(s.fieldIdMapData[side.fieldId],false)]; break;
-					case 'fieldChanged': return s.fieldIdsChanged.includes(side.fieldId); break;
-					case 'fieldValid':   return !s.fieldIdsInvalid.includes(side.fieldId); break;
-					case 'formChanged':  return s.hasChanges; break;
-					case 'formState':    return isFormStateActive(s.formStateIdMap[side.formStateId],recursionLevel + 1); break;
-					case 'languageCode': return s.settings.languageCode; break;
-					case 'login':        return s.loginId; break;
-					case 'preset':       return s.presetIdMapRecordId[side.presetId]; break;
-					case 'record':       return s.joinsIndexMap['0'] !== undefined ? s.joinsIndexMap['0'].recordId : false; break;
-					case 'recordNew':    return s.isNew; break;
-					case 'role':         return s.access.roleIds.includes(side.roleId); break;
-					case 'true':         return true; break;
-					case 'variable':     return s.variableValueGet(side.variableId,s.variableIdMapLocal); break;
+					case 'collection':      return getCollectionValues(side.collectionId,side.columnId,s.filterOperatorIsSingleValue(operator)); break;
+					case 'field':           return s.values[s.getIndexAttributeIdByField(s.fieldIdMapData[side.fieldId],false)]; break;
+					case 'fieldChanged':    return s.fieldIdsChanged.includes(side.fieldId); break;
+					case 'fieldValid':      return !s.fieldIdsInvalid.includes(side.fieldId); break;
+					case 'formChanged':     return s.hasChanges; break;
+					case 'formState':       return isFormStateActive(s.formStateIdMap[side.formStateId],recursionLevel + 1); break;
+					case 'languageCode':    return s.settings.languageCode; break;
+					case 'login':           return s.loginId; break;
+					case 'preset':          return s.presetIdMapRecordId[side.presetId]; break;
+					case 'record':          return s.joinsIndexMap?.['0'] !== undefined ? s.joinsIndexMap['0'].recordId : false; break;
+					case 'recordMayCreate': return s.mayCreate; break;
+					case 'recordMayDelete': return s.mayDelete; break;
+					case 'recordMayUpdate': return s.mayUpdate; break;
+					case 'recordNew':       return s.isNew; break;
+					case 'role':            return s.access.roleIds.includes(side.roleId); break;
+					case 'true':            return true; break;
+					case 'variable':        return s.variableValueGet(side.variableId,s.variableIdMapLocal); break;
 					case 'value':
 						// compatibility fix, true value should be used instead
 						if(typeof side.value === 'string') {
@@ -785,6 +818,57 @@ let MyForm = {
 			}
 			return out;
 		},
+		fieldIdMapProcessed:(s) => {
+			let out = s.getFieldProcessedDefault();
+			const getChoiceFilters = (choices,choiceId) => {
+				if(choiceId !== null) {
+					for(const c of choices) {
+						if(c.id === choiceId) return c.filters;
+					}
+				}
+				return [];
+			};
+			const parseFields = (fields) => {
+				for(const f of fields) {
+					if(f.content === 'container') {
+						parseFields(f.fields);
+						continue;
+					}
+					if(f.content === 'tabs') {
+						for(let t of f.tabs) {
+							parseFields(t.fields);
+						}
+						continue;
+					}
+					
+					if(f.query !== undefined) {
+						let choices           = JSON.parse(JSON.stringify(f.query.choices));
+						const choiceId        = s.$root.getOrFallback(s.fieldIdMapOptions[f.id],'choiceId',choices.length === 0 ? null : choices[0].id);
+						const columnIdsByUser = s.$root.getOrFallback(s.fieldIdMapOptions[f.id],'columnIdsByUser',[]);
+						const collectionIdMap = s.$root.getOrFallback(s.fieldIdMapOptions[f.id],'collectionIdMapIndexes',{});
+						const filters         = s.getQueryFiltersProcessed(
+							f.query.filters,s.joinsIndexMap,null,null,s.fieldIdMapData,s.fieldIdsChanged,s.fieldIdsInvalid,s.values,
+							s.mayCreate,s.mayDelete,s.mayUpdate,collectionIdMap,s.variableIdMapLocal
+						);
+
+						for(let i = 0, j = choices.length; i < j; i++) {
+							choices[i].filters = s.getQueryFiltersProcessed(
+								choices[i].filters,s.joinsIndexMap,null,null,s.fieldIdMapData,s.fieldIdsChanged,s.fieldIdsInvalid,s.values,
+								s.mayCreate,s.mayDelete,s.mayUpdate,collectionIdMap,s.variableIdMapLocal);
+						}
+
+						out.choices[f.id] = choices;
+						out.columns[f.id] = s.getColumnsProcessed(
+							f.columns,columnIdsByUser,s.joinsIndexMap,null,null,s.fieldIdMapData,s.fieldIdsChanged,
+							s.fieldIdsInvalid,s.values,s.mayCreate,s.mayDelete,s.mayUpdate,s.variableIdMapLocal);
+						out.filters[f.id] = filters.concat(getChoiceFilters(choices,choiceId));
+						out.filtersInput[f.id] = filters;
+					}
+				}
+			};
+			parseFields(s.fields);
+			return out;
+		},
 		
 		// stores
 		moduleIdMap:        (s) => s.$store.getters['schema/moduleIdMap'],
@@ -808,6 +892,7 @@ let MyForm = {
 		colorMenu:          (s) => s.$store.getters.colorMenu,
 		isAdmin:            (s) => s.$store.getters.isAdmin,
 		isAtFavoritesEdit:  (s) => s.$store.getters.isAtFavoritesEdit,
+		isAtHistoryStart:   (s) => s.$store.getters.isAtHistoryStart,
 		isMobile:           (s) => s.$store.getters.isMobile,
 		isNoAuth:           (s) => s.$store.getters.isNoAuth,
 		keyLength:          (s) => s.$store.getters.constants.keyLength,
@@ -821,7 +906,6 @@ let MyForm = {
 		// externals
 		aesGcmDecryptBase64WithPhrase,
 		aesGcmEncryptBase64WithPhrase,
-		checkDataOptions,
 		consoleError,
 		dialogCloseAsk,
 		fillRelationRecordIds,
@@ -831,9 +915,11 @@ let MyForm = {
 		getAttributeValueFromString,
 		getCaption,
 		getCollectionValues,
+		getColumnsProcessed,
 		getDataFieldMap,
 		getDetailsFromIndexAttributeId,
-		getFieldOverwritesDefault,
+		getFieldOverwriteDefault,
+		getFieldProcessedDefault,
 		getFormPopUpConfig,
 		getFormRoute,
 		getFormStateIdMap,
@@ -847,7 +933,6 @@ let MyForm = {
 		getRelationsJoined,
 		getResolvedPlaceholders,
 		getRowsDecrypted,
-		hasAccessToRelation,
 		isAttributeRelationship,
 		isAttributeRelationshipN1,
 		jsFunctionRun,
@@ -861,22 +946,22 @@ let MyForm = {
 		variableValueSet,
 		
 		// form management
-		handleHotkeys(e) {
+		handleHotkeys(ev) {
 			// ignore hotkeys if pop-up form (child of this form) is open or if its a widget
 			if(this.popUp !== null || this.isWidget) return;
 
-			if(e.type === 'keyup') {
-				if(this.isPopUp && e.key === 'Escape')
-					this.closeAsk();
+			if(this.isPopUp && ev.key === 'Escape') {
+				this.closeAsk();
+				ev.stopPropagation();
 			}
-			if(e.type === 'keydown') {
-				if(this.isData && e.ctrlKey && e.key === 's') {
-					e.preventDefault();
 
-					if(!this.form.noDataActions && !this.blockInputs && this.canUpdate) {
-						if(!this.isBulkUpdate && this.hasChanges)     this.set(false);
-						if(this.isBulkUpdate  && this.hasChangesBulk) this.setBulkUpdate();
-					}
+			if(this.isData && ev.ctrlKey && ev.key === 's') {
+				ev.preventDefault();
+				ev.stopPropagation();
+
+				if(!this.form.noDataActions && this.buttonSaveUsable) {
+					if(!this.isBulkUpdate && this.hasChanges)     this.set(false,false);
+					if(this.isBulkUpdate  && this.hasChangesBulk) this.setBulkUpdate();
 				}
 			}
 		},
@@ -927,7 +1012,7 @@ let MyForm = {
 			// reset form behaviour and load record
 			this.blockInputs = false;
 			this.firstLoad   = false;
-			this.fieldIdMapOverwrite = this.getFieldOverwritesDefault();
+			this.fieldIdMapOverwrite = this.getFieldOverwriteDefault();
 			this.timerClearAll();
 			this.closePopUp();
 			this.popUpFieldIdSrc = null;
@@ -935,8 +1020,8 @@ let MyForm = {
 			this.valuesOld       = {};
 			this.$nextTick(this.resized);
 
-			// for new records: apply defaults to update joins
-			// before get() as default values could be overwritten by form function
+			// for new records: apply defaults
+			// before get() as default values could be overwritten by form function (after load event)
 			if(this.isNew) {
 				for(const ia in this.valuesDef) {
 					if(this.valuesDef[ia] !== null)
@@ -1009,12 +1094,12 @@ let MyForm = {
 			
 			// update joined data, if relevant (because relationship value changed or defaults were loaded)
 			if(updateJoins && (changed || isOriginal)) {
-				const ia = this.getDetailsFromIndexAttributeId(indexAttributeId);
-				if(ia.outsideIn) return;
+				const d = this.getDetailsFromIndexAttributeId(indexAttributeId);
+				if(d.outsideIn) return;
 				
 				// get data from sub joins if relationship attribute value has changed
 				for(let k in this.joinsIndexMap) {
-					if(this.joinsIndexMap[k].attributeId === ia.attributeId)
+					if(this.joinsIndexMap[k].attributeId === d.attributeId)
 						this.getFromSubJoin(this.joinsIndexMap[k],value);
 				}
 			}
@@ -1064,16 +1149,16 @@ let MyForm = {
 			// set row values (decrypt first if necessary)
 			return this.getRowsDecrypted(rows,expressions).then(
 				rows => {
-					for(let i = 0, j = row.values.length; i < j; i++) {
-						const e = expressions[i];
-						
-						this.valueSet(
-							this.getIndexAttributeId(
-								e.index,e.attributeId,
-								e.outsideIn,e.attributeIdNm
-							),
-							row.values[i],true,false
-						);
+					const rowDecr = rows[0];
+					for(let i = 0, j = rowDecr.values.length; i < j; i++) {
+						const e  = expressions[i];
+						const ia = this.getIndexAttributeId(e.index,e.attributeId,e.outsideIn,e.attributeIdNm);
+
+						// if it´s a new record on affected relation, use defaults
+						if(row.indexRecordIds[e.index] === null)
+							this.valueSet(ia,this.valuesDef[ia],true,true);
+						else
+							this.valueSet(ia,rowDecr.values[i],true,false);
 					}
 				}
 			);
@@ -1120,7 +1205,7 @@ let MyForm = {
 				true,this.getGetterFromAttributeValues(this.attributeIdMapDef));
 			
 			if(!middleClick) navigator.clipboard.writeText(`${location.protocol}//${location.host}/#${path}`);
-			else             window.open(`${location.protocol}//${location.host}/#${path}`);
+			else             this.openLink(`${location.protocol}//${location.host}/#${path}`,true);
 		},
 		makeFavorite() {
 			const recordId = this.recordIds.length === 1 ? this.recordIds[0] : null;
@@ -1157,7 +1242,7 @@ let MyForm = {
 		},
 		openBuilder(middle) {
 			if(middle)
-				return window.open('#/builder/form/'+this.form.id,'_blank');
+				return this.openLink('#/builder/form/'+this.form.id,true);
 			
 			this.blockInputs = true;
 			this.$router.push('/builder/form/'+this.form.id);
@@ -1221,7 +1306,7 @@ let MyForm = {
 			this.blockInputs = true;
 			window.history.back();
 		},
-		popUpRecordChanged(change,recordId) {
+		popUpFormUpdate(change,recordId) {
 			const isDeleted = change === 'deleted';
 			const isUpdated = change === 'updated';
 
@@ -1229,51 +1314,63 @@ let MyForm = {
 				// update data field value to reflect change of pop-up form record
 				const field = this.fieldIdMapData[this.popUpFieldIdSrc];
 				const atr   = this.attributeIdMap[field.attributeId];
-				const iaId  = this.getIndexAttributeIdByField(field,false);
+				const ia    = this.getIndexAttributeIdByField(field,false);
 				
 				if(this.isAttributeRelationship(atr.content)) {
+					let   valNew  = null;
 					const isMulti = field.attributeIdNm !== null ||
 						(field.outsideIn && this.isAttributeRelationshipN1(atr.content));
 					
 					if(!isMulti) {
-						this.valuesNew[iaId] = isDeleted ? null : recordId;
+						valNew = isDeleted ? null : recordId;
 					}
 					else {
-						let val = JSON.parse(JSON.stringify(this.values[iaId]));
+						let val = JSON.parse(JSON.stringify(this.values[ia]));
 
 						if(isDeleted && val !== null) {
 							const pos = val.indexOf(recordId);
 							if(pos !== -1) val.splice(pos,1);
 
-							this.valuesNew[iaId] = val;
+							valNew = val;
 						}
 						else if(isUpdated) {
 							if(val === null) {
-								this.valuesNew[iaId] = [recordId];
+								valNew = [recordId];
 							}
 							else if(val.indexOf(recordId) === -1) {
 								val.push(recordId);
-								this.valuesNew[iaId] = val;
+								valNew = val;
 							}
 						}
 					}
+					this.valueSetByField(ia,valNew,false,true,field.id);
 
 					if(field.jsFunctionId !== null)
 						this.jsFunctionRun(field.jsFunctionId,[],this.exposedFunctions);
 				}
 			}
 
-			// reload form to update fields (incl. non-data field like lists)
+			// reload form to update fields (incl. non-data field like lists), as well as its parent
 			this.loading = true;
 			this.releaseLoadingOnNextTick();
-
-			// inform parent form about sub form record change as well
-			this.$emit(isUpdated ? 'record-updated' : 'record-deleted', null);
+			this.$emit('refresh-parent');
+		},
+		popUpReplace() {
+			this.popUp = null;
+			this.$nextTick(() => this.openForm(...arguments));
 		},
 		scrollToInvalidField() {
 			const el = this.$refs.fields.querySelector(`[data-field-is-valid="0"]`);
 			if(el !== null)
 				el.scrollIntoView();
+		},
+		toggleHelp() {
+			this.showHelp = !this.showHelp;
+			this.resized();
+		},
+		toggleLog() {
+			this.showLog = !this.showLog;
+			this.resized();
 		},
 		
 		// timer
@@ -1315,6 +1412,12 @@ let MyForm = {
 			
 			const openSameForm  = this.form.id === openForm.formIdOpen;
 			const openPopUpForm = openForm.popUpType !== null;
+
+			if(this.isPopUp && replace) {
+				// a floating pop-up can be replaced by closing and reopening it on its parent
+				openForm.popUpType === 'float';
+				return this.$emit('pop-up-replace',recordIds,openForm,getterArgs,newTab,null,false);
+			}
 			
 			if(this.isPopUp || this.isWidget) {
 				// a pop-up/widget form can be reloaded by using itself as target (the same as regular forms)
@@ -1365,17 +1468,15 @@ let MyForm = {
 			// different path, same form
 			if(openSameForm) {
 				// switch from existing to new one or between two existing records
-				if(!this.isNew && recordIdOpen !== this.recordIds[0])
+				if(!replace && !this.isNew && recordIdOpen !== this.recordIds[0])
 					return this.$router.push(path);
 				
 				return this.$router.replace(path);
 			}
 			
 			// new form
-			if(replace)
-				return this.$router.replace(path);
-			
-			return this.$router.push(path);
+			if(replace) this.$router.replace(path);
+			else        this.$router.push(path);
 		},
 		setFormArgs(args,push) {
 			const path = this.getFormRoute(this.favoriteId,this.form.id,
@@ -1389,13 +1490,13 @@ let MyForm = {
 		},
 		
 		// backend calls
-		delAsk() {
+		delAsk(deleteAndNew) {
 			this.$store.commit('dialog',{
 				captionBody:this.capApp.dialog.delete,
 				buttons:[{
 					cancel:true,
 					caption:this.capGen.button.delete,
-					exec:this.del,
+					exec:() => this.del(deleteAndNew),
 					keyEnter:true,
 					image:'shred.png'
 				},{
@@ -1405,7 +1506,7 @@ let MyForm = {
 				}]
 			});
 		},
-		del() {
+		del(deleteAndNew) {
 			this.triggerEventBefore('delete');
 			
 			let requests = [];
@@ -1425,16 +1526,22 @@ let MyForm = {
 					
 					this.triggerEventAfter('delete');
 					
-					if(this.recordActionFree)
-						this.openForm();
-					
+					if(this.recordActionFree) {
+						if(this.isPopUp && deleteAndNew)  return this.$emit('records-open',[]);
+						if(this.isPopUp && !deleteAndNew) return this.closeAsk();
+						
+						if(deleteAndNew || this.isAtHistoryStart)
+							return this.openForm(null,null,[],false,null,true);
+						
+						return this.openPrevAsk();
+					}
 					this.messageSet('[DELETED]');
 				},
 				this.$root.genericError
 			).finally(
-				() => this.updatingRecord = false
+				() => this.changingRecord = false
 			);
-			this.updatingRecord = true;
+			this.changingRecord = true;
 		},
 		get() {
 			this.triggerEventBefore('open');
@@ -1462,10 +1569,8 @@ let MyForm = {
 				});
 			}
 			
-			let filters = this.getQueryFiltersProcessed(
-				this.form.query.filters,this.joinsIndexMap).concat([
-					this.getQueryAttributePkFilter(this.relationId,this.recordIds[0],0,false)
-				]);
+			const filters = this.getQueryFiltersProcessed(this.form.query.filters,this.joinsIndexMap).concat([
+				this.getQueryAttributePkFilter(this.relationId,this.recordIds[0],0,false)]);
 			
 			ws.send('data','get',{
 				relationId:this.relationId,
@@ -1583,15 +1688,15 @@ let MyForm = {
 				this.$root.genericError
 			);
 		},
-		set:async function(saveAndNew) {
+		set:async function(saveAndNew,saveAndClose) {
 			if(this.fieldIdsInvalid.length !== 0)
 				return this.badSave = true;
 			
 			this.triggerEventBefore('save');
-			this.updatingRecord = true;
+			this.changingRecord = true;
 			
 			const handleEncErr = err => {
-				this.updatingRecord = false;
+				this.changingRecord = false;
 				this.consoleError(err); // full error for troubleshooting
 				this.$root.genericErrorWithFallback(err,'SEC','003');
 			};
@@ -1796,14 +1901,11 @@ let MyForm = {
 					
 					if(!this.recordActionFree)
 						return;
-					
-					// load empty record if requested
-					if(saveAndNew)
-						return this.openForm();
-					
-					// load newly created record
-					if(this.isNew)
-						return this.openForm([resSet.payload.indexRecordIds['0']]);
+
+					if(saveAndClose && !this.isPopUp) return this.openPrevAsk();
+					if(saveAndClose &&  this.isPopUp) return this.closeAsk();
+					if(saveAndNew)                    return this.openForm();
+					if(this.isNew)                    return this.openForm([resSet.payload.indexRecordIds['0']]);
 					
 					// reload same record
 					// unfortunately necessary as update trigger in backend can change values
@@ -1812,7 +1914,7 @@ let MyForm = {
 				},
 				this.$root.genericError
 			).finally(
-				() => this.updatingRecord = false
+				() => this.changingRecord = false
 			);
 		},
 		setBulkUpdate() {
@@ -1822,7 +1924,7 @@ let MyForm = {
 				return this.badSave = true;
 			
 			this.triggerEventBefore('save');
-			this.updatingRecord = true;
+			this.changingRecord = true;
 			
 			let attributes = [];
 			for(let fieldId of this.fieldIdsTouched) {
@@ -1838,7 +1940,8 @@ let MyForm = {
 				if(this.attributeIdMap[f.attributeId].encrypted)
 					err = this.capApp.dialog.bulkEncrypted;
 				
-				if(err !== null)
+				if(err !== null) {
+					this.changingRecord = false;
 					return this.$store.commit('dialog',{
 						captionBody:err,
 						buttons:[{
@@ -1849,6 +1952,7 @@ let MyForm = {
 							image:'ok.png'
 						}]
 					});
+				}
 				
 				attributes.push({
 					attributeId:f.attributeId,
@@ -1883,7 +1987,7 @@ let MyForm = {
 				},
 				this.$root.genericError
 			).finally(
-				() => this.updatingRecord = false
+				() => this.changingRecord = false
 			);
 		}
 	}

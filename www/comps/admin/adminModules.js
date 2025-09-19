@@ -1,5 +1,6 @@
 import MyArticles            from '../articles.js';
 import srcBase64Icon         from '../shared/image.js';
+import {openLink}            from '../shared/generic.js';
 import {getUnixFormat}       from '../shared/time.js';
 import {getCaption}          from '../shared/language.js';
 export {MyAdminModules as default};
@@ -182,6 +183,7 @@ let MyAdminModulesItem = {
 		// externals
 		getCaption,
 		getUnixFormat,
+		openLink,
 		srcBase64Icon,
 		
 		// actions
@@ -203,7 +205,7 @@ let MyAdminModulesItem = {
 		},
 		openBuilder(middle) {
 			if(!middle) this.$router.push('/builder/module/'+this.module.id);
-			else        window.open('#/builder/module/'+this.module.id,'_blank');
+			else        this.openLink('#/builder/module/'+this.module.id,true);
 		},
 		ownerToggle() {
 			this.owner = !this.owner;
@@ -556,14 +558,14 @@ let MyAdminModules = {
 			);
 		},
 		install(fileId) {
-			ws.send('repoModule','install',{fileId:fileId},true).then(
+			ws.send('repoModule','install',{fileId:fileId},true,true).then(
 				() => this.installOk(),
 				this.installError
 			);
 			this.installStarted = true;
 		},
 		installAll() {
-			ws.send('repoModule','installAll',{},true).then(
+			ws.send('repoModule','installAll',{},true,true).then(
 				() => this.installOk(),
 				this.installError
 			);

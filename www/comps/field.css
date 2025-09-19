@@ -4,6 +4,7 @@
 	flex-flow:column nowrap;
 	/* required for some input fields to take proper size */
 	max-height:100%;
+	max-width:calc(100% - var(--spacing));
 }
 .field.container{
 	display:flex;
@@ -11,6 +12,7 @@
 	margin:0px !important;
 	/* to unset max-height:100% on .field for containers */
 	max-height:unset;
+	max-width:100%;
 }
 .field.container.row{
 	flex-direction:row;
@@ -69,9 +71,9 @@
 	padding-right:var(--spacing-field-padding);
 }
 .field-content.isSingleField{
-	border:none;
-	box-shadow:none;
-	border-radius:0px;
+	border:none !important;
+	box-shadow:none !important;
+	border-radius:0px !important;
 }
 .field-content>.input.textarea{
 	margin:0px;
@@ -100,6 +102,9 @@
 }
 .field .disabled .caption{
 	color:var(--color-font);
+}
+.field .invalid{
+	color:var(--color-error) !important;
 }
 .field .captionSub{
 	margin:3px 0px 0px 6px;
@@ -143,13 +148,6 @@
 	overflow:auto;
 }
 
-
-.field .invalid,
-.field .invalid::placeholder{
-	/* necessary for chrome */
-	color:var(--color-error) !important;
-}
-
 /* input field */
 .field .input{
 	width:0px; /* base width, required for inputs < 100px */
@@ -170,15 +168,6 @@
 	outline:none;
 	color:var(--color-font);
 }
-.field .input::placeholder{
-	color:var(--color-font-disabled);
-	opacity:1; /* standardize across browsers */
-}
-.field .input:disabled{
-	color:inherit; /* readonly state is represented by field background */
-	opacity:1;     /* standardize across browsers */
-	-webkit-text-fill-color:var(--color-font-disabled); /* fix for Safari < 18.0 */
-}
 .field .input .list{
 	margin:0px;
 	border:none;
@@ -188,22 +177,6 @@
 	font-size:inherit;
 	font-family:inherit;
 	resize:none;
-}
-.field .color-input{
-	display:flex;
-	flex-flow:row nowrap;
-	align-items:stretch;
-	flex:1 1 auto;
-}
-.field .color-input input{
-	flex:1 1 auto;
-}
-.field .color-input .preview{
-	flex:0 1 50px;
-	height:20px;
-	border:1px solid var(--color-border);
-	border-radius:9px;
-	align-self:center;
 }
 
 /* slider input */
@@ -268,19 +241,6 @@
 /* header field with richtext */
 .field.headerRichtext{
 	overflow:auto;
-}
-
-/* chart field */
-.field .chart{
-	flex:1 1 auto;
-	display:flex;
-	flex-flow:column nowrap;
-	background-color:var(--color-input);
-	border-radius:var(--border-input-radius);
-	box-shadow:var(--shadow-input);
-}
-.field .chart .actions{
-	flex:0 0 auto;
 }
 
 /* tabs field */

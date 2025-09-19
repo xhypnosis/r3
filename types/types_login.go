@@ -10,14 +10,32 @@ type Login struct {
 	Name string `json:"name"`
 }
 type LoginAccess struct {
-	RoleIds     []uuid.UUID       `json:"roleIds"`     // all assigned roles (incl. inherited)
-	Api         map[uuid.UUID]int `json:"api"`         // effective access to specific API
-	Attribute   map[uuid.UUID]int `json:"attribute"`   // effective access to specific attributes
-	ClientEvent map[uuid.UUID]int `json:"clientEvent"` // effective access to specific client events
-	Collection  map[uuid.UUID]int `json:"collection"`  // effective access to specific collection
-	Menu        map[uuid.UUID]int `json:"menu"`        // effective access to specific menus
-	Relation    map[uuid.UUID]int `json:"relation"`    // effective access to specific relations
-	Widget      map[uuid.UUID]int `json:"widget"`      // effective access to specific widgets
+	RoleIds     []uuid.UUID          `json:"roleIds"`     // all assigned roles (incl. inherited)
+	Api         map[uuid.UUID]Access `json:"api"`         // effective access to specific API
+	Attribute   map[uuid.UUID]Access `json:"attribute"`   // effective access to specific attributes
+	ClientEvent map[uuid.UUID]Access `json:"clientEvent"` // effective access to specific client events
+	Collection  map[uuid.UUID]Access `json:"collection"`  // effective access to specific collection
+	Menu        map[uuid.UUID]Access `json:"menu"`        // effective access to specific menus
+	Relation    map[uuid.UUID]Access `json:"relation"`    // effective access to specific relations
+	SearchBar   map[uuid.UUID]Access `json:"searchBar"`   // effective access to specific search bars
+	Widget      map[uuid.UUID]Access `json:"widget"`      // effective access to specific widgets
+}
+type LoginAuthResult struct {
+	// auth types: user, token, fixed token, openId
+	Admin bool   `json:"admin"` // login has instance admin permissions
+	Id    int64  `json:"id"`    // login ID
+	Name  string `json:"name"`  // login name (unique in instance)
+	Token string `json:"token"` // login token
+
+	// auth types: user
+	MfaTokens []LoginMfaToken `json:"mfaTokens"` // available MFAs, filled if user auth ok, but MFA not satisfied
+	NoAuth    bool            `json:"noAuth"`    // login is without authentication (public auth with only name)
+
+	// auth types: user, openId
+	SaltKdf string `json:"saltKdf"`
+
+	// auth types: token, fixed token
+	LanguageCode string `json:"languageCode"`
 }
 type LoginClientEvent struct {
 	// login client events exist if a login has enabled a hotkey client event
@@ -61,6 +79,10 @@ type LoginPublicKey struct {
 type LoginRecord struct {
 	Id   int64  `json:"id"`   // ID of relation record
 	Name string `json:"name"` // name for relation record (based on lookup attribute)
+}
+type LoginRoleAssign struct {
+	RoleId       uuid.UUID `json:"roleId"`
+	SearchString string    `json:"searchString"` // if value matches this string, role is assigned
 }
 type LoginTokenFixed struct {
 	Id         int64  `json:"id"`

@@ -150,6 +150,13 @@ let MyBuilder = {
 					</router-link>
 					
 					<router-link class="entry clickable"
+						:to="'/builder/search-bars/'+module.id"
+					>
+						<img src="images/search.png" />
+						<span>{{ capGen.searchBars }}</span>
+					</router-link>
+					
+					<router-link class="entry clickable"
 						v-if="hasLoginForms"
 						:to="'/builder/login-forms/'+module.id"
 					>
@@ -221,6 +228,13 @@ let MyBuilder = {
 					<span>{{ capGen.collections }}</span>
 				</router-link>
 				<router-link class="entry isTitle grow clickable"
+					v-if="navigation === 'search-bars'"
+					:to="'/builder/search-bars/'+module.id"
+				>
+					<img src="images/search.png" />
+					<span>{{ capGen.searchBars }}</span>
+				</router-link>
+				<router-link class="entry isTitle grow clickable"
 					v-if="navigation === 'apis'"
 					:to="'/builder/apis/'+module.id"
 				>
@@ -248,7 +262,7 @@ let MyBuilder = {
 						:title="capApp.navigationFilterHint"
 					/>
 					<my-button image="add.png"
-						v-if="['apis','collections','forms','js-functions','pg-functions','relations','roles'].includes(navigation)"
+						v-if="['apis','collections','forms','js-functions','pg-functions','relations','roles','search-bars'].includes(navigation)"
 						@trigger="add"
 						:active="moduleOwner"
 						:captionTitle="capGen.button.add"
@@ -293,6 +307,15 @@ let MyBuilder = {
 						:key="c.id"
 						:to="'/builder/collection/'+c.id" 
 					>{{ c.name }}</router-link>
+				</template>
+				
+				<!-- search bars -->
+				<template v-if="navigation === 'search-bars'">
+					<router-link class="entry clickable"
+						v-for="b in module.searchBars.filter(v => v.name.toLowerCase().includes(filter.toLowerCase()))"
+						:key="b.id"
+						:to="'/builder/search-bar/'+b.id" 
+					>{{ b.name }}</router-link>
 				</template>
 				
 				<!-- APIs -->
@@ -422,6 +445,7 @@ let MyBuilder = {
 						case 'relation':    targetIdMap = this.relationIdMap;   break;
 						case 'role':        targetIdMap = this.roleIdMap;       break;
 						case 'pg-function': targetIdMap = this.pgFunctionIdMap; break;
+						case 'search-bar':  targetIdMap = this.searchBarIdMap; break;
 						case 'variable':    targetIdMap = this.variableIdMap;   break;
 						case 'widget':      targetIdMap = this.widgetIdMap;     break;
 					}
@@ -433,12 +457,16 @@ let MyBuilder = {
 					this.isReady = false;
 					return;
 				}
+
+				// close global search if routed to anywhere in the Builder
+				if(this.globalSearchInput !== null)
+					this.$store.commit('globalSearchInput',null);
 				
 				// apply module ID from target
 				this.moduleId = isModule ? val.params.id : targetIdMap[val.params.id].moduleId;
 				
 				// set module translation language
-				let mod = this.moduleIdMap[this.moduleId];
+				const mod = this.moduleIdMap[this.moduleId];
 				
 				if(mod.languages.indexOf(this.settings.languageCode) !== -1)
 					this.builderLanguage = this.settings.languageCode;
@@ -456,6 +484,7 @@ let MyBuilder = {
 			s.navigation === 'forms'        && s.module.forms.length       !== 0 ||
 			s.navigation === 'roles'        && s.module.roles.length       !== 0 ||
 			s.navigation === 'collections'  && s.module.collections.length !== 0 ||
+			s.navigation === 'search-bars'  && s.module.searchBars.length  !== 0 ||
 			s.navigation === 'apis'         && s.module.apis.length        !== 0 ||
 			s.navigation === 'js-functions' && s.module.jsFunctions.length !== 0 ||
 			s.navigation === 'pg-functions' && s.module.pgFunctions.length !== 0,
@@ -476,25 +505,27 @@ let MyBuilder = {
 		moduleOwner:  (s) => s.isNew ? true  : s.moduleIdMapMeta[s.moduleId].owner,
 		
 		// stores
-		apiIdMap:       (s) => s.$store.getters['schema/apiIdMap'],
-		attributeIdMap: (s) => s.$store.getters['schema/attributeIdMap'],
-		collectionIdMap:(s) => s.$store.getters['schema/collectionIdMap'],
-		formIdMap:      (s) => s.$store.getters['schema/formIdMap'],
-		iconIdMap:      (s) => s.$store.getters['schema/iconIdMap'],
-		jsFunctionIdMap:(s) => s.$store.getters['schema/jsFunctionIdMap'],
-		moduleIdMap:    (s) => s.$store.getters['schema/moduleIdMap'],
-		pgFunctionIdMap:(s) => s.$store.getters['schema/pgFunctionIdMap'],
-		relationIdMap:  (s) => s.$store.getters['schema/relationIdMap'],
-		roleIdMap:      (s) => s.$store.getters['schema/roleIdMap'],
-		variableIdMap:  (s) => s.$store.getters['schema/variableIdMap'],
-		widgetIdMap:    (s) => s.$store.getters['schema/widgetIdMap'],
-		bgStyle:        (s) => s.$store.getters.colorMenuStyle,
-		builderEnabled: (s) => s.$store.getters.builderEnabled,
-		capApp:         (s) => s.$store.getters.captions.builder,
-		capGen:         (s) => s.$store.getters.captions.generic,
-		colorMenu:      (s) => s.$store.getters.colorMenu,
-		moduleIdMapMeta:(s) => s.$store.getters.moduleIdMapMeta,
-		settings:       (s) => s.$store.getters.settings
+		apiIdMap:         (s) => s.$store.getters['schema/apiIdMap'],
+		attributeIdMap:   (s) => s.$store.getters['schema/attributeIdMap'],
+		collectionIdMap:  (s) => s.$store.getters['schema/collectionIdMap'],
+		formIdMap:        (s) => s.$store.getters['schema/formIdMap'],
+		iconIdMap:        (s) => s.$store.getters['schema/iconIdMap'],
+		jsFunctionIdMap:  (s) => s.$store.getters['schema/jsFunctionIdMap'],
+		moduleIdMap:      (s) => s.$store.getters['schema/moduleIdMap'],
+		pgFunctionIdMap:  (s) => s.$store.getters['schema/pgFunctionIdMap'],
+		relationIdMap:    (s) => s.$store.getters['schema/relationIdMap'],
+		roleIdMap:        (s) => s.$store.getters['schema/roleIdMap'],
+		searchBarIdMap:   (s) => s.$store.getters['schema/searchBarIdMap'],
+		variableIdMap:    (s) => s.$store.getters['schema/variableIdMap'],
+		widgetIdMap:      (s) => s.$store.getters['schema/widgetIdMap'],
+		bgStyle:          (s) => s.$store.getters.colorMenuStyle,
+		builderEnabled:   (s) => s.$store.getters.builderEnabled,
+		capApp:           (s) => s.$store.getters.captions.builder,
+		capGen:           (s) => s.$store.getters.captions.generic,
+		colorMenu:        (s) => s.$store.getters.colorMenu,
+		globalSearchInput:(s) => s.$store.getters.globalSearchInput,
+		moduleIdMapMeta:  (s) => s.$store.getters.moduleIdMapMeta,
+		settings:         (s) => s.$store.getters.settings
 	},
 	methods:{
 		// externals
@@ -513,6 +544,7 @@ let MyBuilder = {
 				case 'pg-functions': entity = 'pgFunction'; break;
 				case 'relations':    entity = 'relation';   break;
 				case 'roles':        entity = 'role';       break;
+				case 'search-bars':  entity = 'searchBar';  break;
 				case 'variables':    entity = 'variable';   break;
 				case 'widgets':      entity = 'widget';     break;
 			}
@@ -520,7 +552,7 @@ let MyBuilder = {
 		},
 		createNew(entity,presets) {
 			this.createNewEntity  = entity;
-			this.createNewPresets = typeof presets !== 'undefined' ? presets : {};
+			this.createNewPresets = presets !== undefined ? presets : {};
 		},
 		nextLanguage() {
 			if(this.createNewOpen) return;

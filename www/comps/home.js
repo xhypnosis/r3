@@ -134,15 +134,15 @@ let MyHome = {
     noAccess: (s) => s.noNavigation && !s.noModules,
     noModules: (s) => s.modules.length === 0,
     noNavigation: (s) => s.moduleEntries.length === 0,
-    //  Hypnos: 关闭更新通知
-    // showUpdate:     (s) => !s.isAdmin || s.versionBuildNew <= s.settings.hintUpdateVersion
-    // 	? false : s.versionBuildNew > s.getBuildFromVersion(s.appVersion),
+    showUpdate: (s) =>
+      !s.isAdmin || s.versionBuildNew <= s.settings.hintUpdateVersion
+        ? false
+        : s.versionBuildNew > s.getBuildFromVersion(s.appVersion),
     showWidgets: (s) => !s.noAccess && !s.noModules,
     versionBuildNew: (s) =>
       !s.isAdmin || s.config.updateCheckVersion === ""
         ? 0
         : s.getBuildFromVersion(s.config.updateCheckVersion),
-    showUpdate: () => false,
 
     // stores
     activated: (s) => s.$store.getters["local/activated"],
@@ -180,7 +180,7 @@ let MyHome = {
 
     // actions
     installPackage() {
-      ws.send("package", "install", {}, true).then(() => {},
+      ws.send("package", "install", {}, true, true).then(() => {},
       this.$root.genericError);
       this.installStarted = true;
     },

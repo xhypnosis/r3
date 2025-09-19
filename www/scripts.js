@@ -1,8 +1,11 @@
-import MyApp     from './comps/app.js';
-import MyButton  from './comps/button.js';
-import MyFilters from './comps/filters.js';
-import MyHome    from './comps/home.js';
-import MyStore   from './stores/store.js';
+import MyApp           from './comps/app.js';
+import MyButton        from './comps/button.js';
+import MyButtonGroup   from './comps/buttonGroup.js';
+import MyFilters       from './comps/filters.js';
+import MyHome          from './comps/home.js';
+import MyLabel         from './comps/label.js';
+import MyValueRich     from './comps/valueRich.js';
+import MyStore         from './stores/store.js';
 import {MyButtonCheck} from './comps/button.js';
 import {
 	MyGoForm,
@@ -60,6 +63,8 @@ import MyBuilderRelation    from './comps/builder/builderRelation.js';
 import MyBuilderRelations   from './comps/builder/builderRelations.js';
 import MyBuilderRole        from './comps/builder/builderRole.js';
 import MyBuilderRoles       from './comps/builder/builderRoles.js';
+import MyBuilderSearchBar   from './comps/builder/builderSearchBar.js';
+import MyBuilderSearchBars  from './comps/builder/builderSearchBars.js';
 import MyBuilderStart       from './comps/builder/builderStart.js';
 import MyBuilderVariables   from './comps/builder/builderVariables.js';
 import MyBuilderWidgets     from './comps/builder/builderWidgets.js';
@@ -202,6 +207,16 @@ const MyRouter = VueRouter.createRouter({
 				component:MyBuilderCollection,
 				props:true
 			},{
+				path:'search-bars/:id',
+				meta:{ nav:'search-bars', target:'module' },
+				component:MyBuilderSearchBars,
+				props:true
+			},{
+				path:'search-bar/:id',
+				meta:{ nav:'search-bars', target:'search-bar' },
+				component:MyBuilderSearchBar,
+				props:true
+			},{
 				path:'login-forms/:id',
 				meta:{ nav:'login-forms', target:'module' },
 				component:MyBuilderLoginForms,
@@ -282,6 +297,12 @@ MyRouter.beforeEach((to,from) => {
 	
 	return true;
 });
+MyRouter.afterEach((to,from) => {
+	if(window.history?.state !== undefined) {
+		MyStore.commit('isAtHistoryEnd',   window.history.state.forward === null);
+		MyStore.commit('isAtHistoryStart', window.history.state.back    === null);
+	}
+});
 
 // define main app
 const app = Vue.createApp(MyApp)
@@ -293,7 +314,10 @@ const app = Vue.createApp(MyApp)
 	.component('my-bool-string-number',MyBoolStringNumber)
 	.component('my-button',MyButton)
 	.component('my-button-check',MyButtonCheck)
-	.component('my-filters',MyFilters);
+	.component('my-button-group',MyButtonGroup)
+	.component('my-filters',MyFilters)
+	.component('my-label',MyLabel)
+	.component('my-value-rich',MyValueRich);
 
 app.directive('click-outside',{
 	beforeMount(el,binding,vnode) {

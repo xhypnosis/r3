@@ -17,12 +17,20 @@ const MyStoreLocal = {
     companyName: "", // custom company name on login screen
     companyWelcome: "", // custom welcome message on login screen
     css: "", // custom CSS, applied to everything
+    globalSearchOptions: {
+      // global search options
+      dictionary: null,
+      limit: 5,
+      openAsPopUp: true,
+      showHeader: false,
+    },
     loginBackground: 0, // background image for login page
     loginFavorites: {
       // favorites set by login
       dateCache: 0, // to check if current cached values are up-to-date
       moduleIdMap: {}, // favorites by module ID
     },
+    loginNoCred: false, // login is without locally known credentials (as in public or external auth such as Open ID Connect)
     loginOptions: {
       // field options set by login (might include options besides fields in the future)
       dateCache: 0, // used to get delta changes since last retrieval
@@ -38,6 +46,12 @@ const MyStoreLocal = {
     loginKeyAes: null, // en-/decryption key for login private key
     loginKeySalt: null, // salt for login key KDF
     menuIdMapOpen: {}, // map of menu IDs with open state (true/false)
+    openIdAuthDetails: {
+      // details of last Open ID Connect authentication attempt
+      codeVerifier: null, // verifier code for PKCE
+      oauthClientId: null, // local ID of OAUTH2 client
+      state: null, // random state generated before auth call, to verify request came from this frontend
+    },
     token: "", // JWT token
     tokenKeep: false, // keep JWT token between sessions
     widgetFlow: "column", // direction of widget groups (column, row)
@@ -98,6 +112,10 @@ const MyStoreLocal = {
       state.css = payload;
       set("css", payload);
     },
+    globalSearchOptions(state, payload) {
+      state.globalSearchOptions = payload;
+      set("globalSearchOptions", payload);
+    },
     loginBackground(state, payload) {
       state.loginBackground = payload;
       set("loginBackground", payload);
@@ -128,6 +146,10 @@ const MyStoreLocal = {
     loginKeySalt(state, payload) {
       state.loginKeySalt = payload;
       set("loginKeySalt", payload);
+    },
+    loginNoCred(state, payload) {
+      state.loginNoCred = payload;
+      set("loginNoCred", payload);
     },
     loginOption(state, payload) {
       const getOptions = (obj, fieldId) =>
@@ -211,12 +233,34 @@ const MyStoreLocal = {
       base.dateCache = payload.dateCache;
       set(payload.isMobile ? "loginOptionsMobile" : "loginOptions", base);
     },
+    loginOptionsClear(state, payload) {
+      state.loginOptions = { dateCache: 0, favoriteIdMap: {}, fieldIdMap: {} };
+      state.loginOptionsMobile = {
+        dateCache: 0,
+        favoriteIdMap: {},
+        fieldIdMap: {},
+      };
+      set("loginOptions", state.loginOptions);
+      set("loginOptionsMobile", state.loginOptionsMobile);
+    },
     menuIdMapOpenToggle(state, payload) {
       if (typeof state.menuIdMapOpen[payload] === "undefined")
         state.menuIdMapOpen[payload] = true;
       else state.menuIdMapOpen[payload] = !state.menuIdMapOpen[payload];
 
       set("menuIdMapOpen", state.menuIdMapOpen);
+    },
+    openIdAuthDetails(state, payload) {
+      state.openIdAuthDetails = payload;
+      set("openIdAuthDetails", payload);
+    },
+    openIdAuthDetailsReset(state, payload) {
+      state.openIdAuthDetails = {
+        codeVerifier: null,
+        oauthClientId: null,
+        state: null,
+      };
+      set("openIdAuthDetails", state.openIdAuthDetails);
     },
     token(state, payload) {
       state.token = payload;
@@ -266,12 +310,15 @@ const MyStoreLocal = {
     companyName: (state) => state.companyName,
     companyWelcome: (state) => state.companyWelcome,
     css: (state) => state.css,
+    globalSearchOptions: (state) => state.globalSearchOptions,
     loginFavorites: (state) => state.loginFavorites,
     loginKeyAes: (state) => state.loginKeyAes,
     loginKeySalt: (state) => state.loginKeySalt,
+    loginNoCred: (state) => state.loginNoCred,
     loginOptions: (state) => state.loginOptions,
     loginOptionsMobile: (state) => state.loginOptionsMobile,
     menuIdMapOpen: (state) => state.menuIdMapOpen,
+    openIdAuthDetails: (state) => state.openIdAuthDetails,
     token: (state) => state.token,
     tokenKeep: (state) => state.tokenKeep,
     widgetFlow: (state) => state.widgetFlow,
@@ -280,8 +327,8 @@ const MyStoreLocal = {
 };
 
 // read values from local storage on init
-let init = (function () {
-  for (let k in MyStoreLocal.state) {
+const init = (function () {
+  for (const k in MyStoreLocal.state) {
     const value = localStorage.getItem(k);
 
     if (value !== undefined && value !== null)
@@ -289,6 +336,6 @@ let init = (function () {
   }
 })();
 
-let set = function (name, value) {
+const set = function (name, value) {
   if (value !== undefined) localStorage.setItem(name, JSON.stringify(value));
 };

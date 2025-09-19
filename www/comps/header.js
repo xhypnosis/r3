@@ -8,11 +8,10 @@ import {
 	getCollectionColumn,
 	getConsumersEntries
 } from './shared/collection.js';
-export {MyHeader as default};
 
-let MyHeader = {
+export default {
 	name:'my-header',
-	template:`<div class="app-header shade noPrint" :class="{ isDark:colorHeaderMain.isDark() }" :style="bgStyle">
+	template:`<div class="app-header shade noPrint" :class="{ isDark:isDark }" :style="bgStyle">
 		
 		<div ref="content" class="entries">
 			
@@ -35,6 +34,7 @@ let MyHeader = {
 				
 				<router-link class="entry no-wrap clickable" to="/admin">
 					<img src="images/serverCog.png" />
+					<span v-if="!productionMode">{{ capGen.maintenance }}</span>
 				</router-link>
 			</template>
 			
@@ -133,17 +133,21 @@ let MyHeader = {
 			</div>
 			
 			<!-- navigation -->
-			<div class="entry no-wrap clickable" tabindex="0"
+			<div class="entry no-wrap clickable"
 				v-if="showNavPrev"
 				@click="pagePrev"
 				@keyup.enter="pagePrev"
+				:class="{ readonly:isAtHistoryStart }"
+				:tabindex="isAtHistoryStart ? -1 : 0"
 			>
 				<img src="images/pagePrev.png" />
 			</div>
-			<div class="entry no-wrap clickable" tabindex="0"
+			<div class="entry no-wrap clickable"
 				v-if="showNavNext"
 				@click="pageNext"
 				@keyup.enter="pageNext"
+				:class="{ readonly:isAtHistoryEnd }"
+				:tabindex="isAtHistoryEnd ? -1 : 0"
 			>
 				<img src="images/pageNext.png" />
 			</div>
@@ -154,7 +158,7 @@ let MyHeader = {
 				@click="keysLockedMsg"
 				@keyup.enter="keysLockedMsg"
 			>
-				<img src="images/key_locked.png" />
+				<img src="images/keyLocked.png" />
 			</div>
 			
 			<!-- feedback -->
@@ -187,6 +191,15 @@ let MyHeader = {
 					{{ getStringFilled(Math.floor(maintenanceInSec / 60),2,'0') + ':' + getStringFilled(maintenanceInSec % 60,2,'0') }}
 				</span>
 			</div>
+			
+			<!-- search bars -->
+			<input class="app-header-search-input" enterkeyhint="send" type="text"
+				v-if="isGlobalSearchOn"
+				v-model="globalSearchInput"
+				@keyup.enter="globalSearchStart($event.target.value); globalSearchInput = ''"
+				:class="{ isDark, 'placeholder-bright':isDark }"
+				:placeholder="capGen.search + '...'"
+			/>
 			
 			<!-- settings -->
 			<div class="entry no-wrap clickable" tabindex="0"
@@ -231,6 +244,7 @@ let MyHeader = {
 	emits:['logout','logoutExpire','show-collection-input','show-module-hover-menu','show-settings'],
 	data() {
 		return {
+			globalSearchInput:'',
 			maintenanceInSec:0,
 			layoutCheckTimer:null,
 			layoutElements:[],               // elements that are shown, based on available space
@@ -328,6 +342,8 @@ let MyHeader = {
 		},
 		
 		// simple
+		isDark:          (s) => s.colorHeaderMain.isDark(),
+		isGlobalSearchOn:(s) => s.searchModuleIds.length !== 0,
 		pwaSingle:       (s) => s.pwaModuleId !== null,
 		showCollections: (s) => s.layoutElementsProcessed.includes('collections'),
 		showFeedback:    (s) => s.layoutElementsProcessed.includes('feedback') && s.feedback && !s.isNoAuth,
@@ -339,6 +355,7 @@ let MyHeader = {
 		showNavPrev:     (s) => s.layoutElementsProcessed.includes('navigationPrev'),
 		
 		// stores
+		loginNoCred:         (s) => s.$store.getters['local/loginNoCred'],
 		moduleIdMap:         (s) => s.$store.getters['schema/moduleIdMap'],
 		moduleNameMap:       (s) => s.$store.getters['schema/moduleNameMap'],
 		formIdMap:           (s) => s.$store.getters['schema/formIdMap'],
@@ -352,14 +369,18 @@ let MyHeader = {
 		colorHeaderMain:     (s) => s.$store.getters.colorHeaderMain,
 		feedback:            (s) => s.$store.getters.feedback,
 		isAdmin:             (s) => s.$store.getters.isAdmin,
+		isAtHistoryEnd:      (s) => s.$store.getters.isAtHistoryEnd,
+		isAtHistoryStart:    (s) => s.$store.getters.isAtHistoryStart,
 		isAtMenu:            (s) => s.$store.getters.isAtMenu,
 		isMobile:            (s) => s.$store.getters.isMobile,
 		isNoAuth:            (s) => s.$store.getters.isNoAuth,
 		loginName:           (s) => s.$store.getters.loginName,
 		loginSessionExpires: (s) => s.$store.getters.loginSessionExpires,
 		moduleEntries:       (s) => s.$store.getters.moduleEntries,
+		productionMode:      (s) => s.$store.getters.productionMode,
 		pwaModuleId:         (s) => s.$store.getters.pwaModuleId,
 		moduleIdLast:        (s) => s.$store.getters.moduleIdLast,
+		searchModuleIds:     (s) => s.$store.getters.searchModuleIds,
 		settings:            (s) => s.$store.getters.settings,
 		systemMsgActive:     (s) => s.$store.getters.systemMsgActive,
 		systemMsgDate0:      (s) => s.$store.getters.systemMsgDate0,
@@ -373,6 +394,11 @@ let MyHeader = {
 			immediate:true
 		});
 		this.resized();
+
+		this.$store.commit('keyDownHandlerAdd',{fnc:this.globalSearchStart,key:'F',keyCtrl:true,keyShift:true});
+	},
+	unmounted() {
+		this.$store.commit('keyDownHandlerDel',this.globalSearchStart);
 	},
 	methods:{
 		// externals
@@ -388,8 +414,8 @@ let MyHeader = {
 		// display
 		keysLockedMsg() {
 			this.$store.commit('dialog',{
-				captionBody:this.capErr.SEC['002'],
-				image:'key_locked.png'
+				captionBody:this.loginNoCred ? this.capErr.SEC['007'] : this.capErr.SEC['002'],
+				image:'keyLocked.png'
 			});
 		},
 		updateMetaThemeColor() {
@@ -439,6 +465,10 @@ let MyHeader = {
 			if(!this.moduleSingleActive && this.isMobile)
 				return this.$router.push(`/app/${this.moduleSingle.name}/${this.moduleSingle.name}`);
 		},
+		globalSearchStart(v) {
+			if(this.isGlobalSearchOn)
+				this.$store.commit('globalSearchInput',v !== undefined ? v : window.getSelection().toString());
+		},
 		openSystemMsg() {
 			const d = this.getDateFormat(new Date(this.systemMsgDate1*1000),'H:i');
 			this.$store.commit('dialog',{
@@ -448,7 +478,7 @@ let MyHeader = {
 			});
 		},
 		openFeedback() { this.$store.commit('isAtFeedback',true); },
-		pagePrev()     { window.history.back(); },
-		pageNext()     { window.history.forward(); }
+		pagePrev()     { if(!this.isAtHistoryStart) window.history.back(); },
+		pageNext()     { if(!this.isAtHistoryEnd)   window.history.forward(); }
 	}
 };

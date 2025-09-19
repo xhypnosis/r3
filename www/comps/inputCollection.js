@@ -4,9 +4,8 @@ import {
 	getCollectionColumn,
 	getCollectionColumnIndex
 } from './shared/collection.js';
-export {MyInputCollection as default};
 
-let MyInputCollection = {
+export default {
 	name:'my-input-collection',
 	template:`<div class="input-collection input-custom" @keyup.esc="escape">
 	
@@ -58,7 +57,7 @@ let MyInputCollection = {
 					<!-- available -->
 					<div class="input-collection-side">
 						<div class="row gap centered space-between default-inputs">
-							<span class="label">{{ capGen.available }}</span>
+							<span><b>{{ capGen.available }}</b></span>
 							<input class="short"
 								v-model="textInput"
 								:placeholder="capGen.threeDots"
@@ -77,8 +76,8 @@ let MyInputCollection = {
 					
 					<!-- active selections -->
 					<div class="input-collection-side">
-						<div class="row gap centered">
-							<span class="label">{{ multiValue ? capGen.selected : capGen.selectedMaxOne }}</span>
+						<div class="row gap centered space-between">
+							<span><b>{{ multiValue ? capGen.selected : capGen.selectedMaxOne }}</b></span>
 							<my-button image="delete.png"
 								@trigger="$emit('update:modelValue',[])"
 								:active="hasSelections"

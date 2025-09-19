@@ -12,6 +12,7 @@ import (
 	"r3/cluster"
 	"r3/config"
 	"r3/config/module_meta"
+	"r3/db"
 	"r3/log"
 	"r3/schema"
 	"r3/schema/api"
@@ -32,6 +33,7 @@ import (
 	"r3/schema/preset"
 	"r3/schema/relation"
 	"r3/schema/role"
+	"r3/schema/searchBar"
 	"r3/schema/variable"
 	"r3/schema/widget"
 	"r3/tools"
@@ -53,11 +55,11 @@ type importMeta struct {
 }
 
 // imports extracted modules from given file paths
-func ImportFromFiles_tx(ctx context.Context, tx pgx.Tx, filePathsImport []string) error {
+func ImportFromFiles(ctx context.Context, filePathsImport []string) error {
 	Import_mx.Lock()
 	defer Import_mx.Unlock()
 
-	log.Info("transfer", fmt.Sprintf("start import for modules from file(s): '%s'", strings.Join(filePathsImport, "', '")))
+	log.Info(log.ContextTransfer, fmt.Sprintf("start import for modules from file(s): '%s'", strings.Join(filePathsImport, "', '")))
 
 	// extract module packages
 	filePathsModules := make([]string, 0)
@@ -73,6 +75,12 @@ func ImportFromFiles_tx(ctx context.Context, tx pgx.Tx, filePathsImport []string
 		}
 		filePathsModules = append(filePathsModules, filePaths...)
 	}
+
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
 
 	// parse modules from file paths, only modules that need to be imported are returned
 	moduleIdMapImportMeta := make(map[uuid.UUID]importMeta)
@@ -113,10 +121,10 @@ func ImportFromFiles_tx(ctx context.Context, tx pgx.Tx, filePathsImport []string
 				return errors.New("import loop count exceeded")
 			}
 		}
-		log.Info("transfer", fmt.Sprintf("import loop %d started", loopsRan+1))
+		log.Info(log.ContextTransfer, fmt.Sprintf("import loop %d started", loopsRan+1))
 
 		for _, m := range modules {
-			log.Info("transfer", fmt.Sprintf("import START, module '%s', %s", m.Name, m.Id))
+			log.Info(log.ContextTransfer, fmt.Sprintf("import START, module '%s', %s", m.Name, m.Id))
 
 			/* execution order
 			1. delete to be removed triggers (only need to run once), known issues:
@@ -141,7 +149,7 @@ func ImportFromFiles_tx(ctx context.Context, tx pgx.Tx, filePathsImport []string
 					return err
 				}
 			}
-			log.Info("transfer", fmt.Sprintf("import END, module '%s', %s", m.Name, m.Id))
+			log.Info(log.ContextTransfer, fmt.Sprintf("import END, module '%s', %s", m.Name, m.Id))
 		}
 	}
 
@@ -161,14 +169,28 @@ func ImportFromFiles_tx(ctx context.Context, tx pgx.Tx, filePathsImport []string
 		}
 	}
 
-	log.Info("transfer", "module files were moved to transfer path if imported")
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	log.Info(log.ContextTransfer, "module files were moved to transfer path if imported")
 
 	// update schema cache
 	moduleIdsUpdated := make([]uuid.UUID, 0)
 	for id, _ := range moduleIdMapImportMeta {
 		moduleIdsUpdated = append(moduleIdsUpdated, id)
 	}
-	return cluster.SchemaChanged_tx(ctx, tx, true, moduleIdsUpdated)
+
+	tx, err = db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if err := cluster.SchemaChanged_tx(ctx, tx, true, moduleIdsUpdated); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun bool, lastRun bool,
@@ -186,7 +208,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		return err
 	}
 	if run {
-		log.Info("transfer", fmt.Sprintf("set module '%s' v%d, %s",
+		log.Info(log.ContextTransfer, fmt.Sprintf("set module '%s' v%d, %s",
 			mod.Name, mod.ReleaseBuild, mod.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, module.Set_tx(ctx, tx, mod), mod.Id, idMapSkipped); err != nil {
@@ -203,7 +225,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set article %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set article %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, article.Set_tx(ctx, tx, e.ModuleId,
 			e.Id, e.Name, e.Captions), e.Id, idMapSkipped); err != nil {
@@ -221,7 +243,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set icon %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set icon %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, icon.Set_tx(ctx, tx, e.ModuleId,
 			e.Id, e.Name, e.File, true), e.Id, idMapSkipped); err != nil {
@@ -239,7 +261,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set relation %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set relation %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, relation.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -261,7 +283,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 			if !run {
 				continue
 			}
-			log.Info("transfer", fmt.Sprintf("set PK attribute %s", e.Id))
+			log.Info(log.ContextTransfer, fmt.Sprintf("set PK attribute %s", e.Id))
 
 			if err := importCheckResultAndApply(ctx, tx, attribute.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 				return err
@@ -283,7 +305,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 			if !run {
 				continue
 			}
-			log.Info("transfer", fmt.Sprintf("set attribute %s", e.Id))
+			log.Info(log.ContextTransfer, fmt.Sprintf("set attribute %s", e.Id))
 
 			if err := importCheckResultAndApply(ctx, tx, attribute.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 				return err
@@ -300,7 +322,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set collection %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set collection %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, collection.Set_tx(ctx, tx,
 			e.ModuleId, e.Id, e.IconId, e.Name, e.Columns, e.Query, e.InHeader),
@@ -319,9 +341,25 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set API %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set API %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, api.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
+			return err
+		}
+	}
+
+	// search bars
+	for _, e := range mod.SearchBars {
+		run, err := importCheckRunAndSave(ctx, tx, firstRun, e.Id, idMapSkipped)
+		if err != nil {
+			return err
+		}
+		if !run {
+			continue
+		}
+		log.Info(log.ContextTransfer, fmt.Sprintf("set search bar %s", e.Id))
+
+		if err := importCheckResultAndApply(ctx, tx, searchBar.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
 		}
 	}
@@ -335,7 +373,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set variable %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set variable %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, variable.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -351,7 +389,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set widget %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set widget %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, widget.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -367,7 +405,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set PG function %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set PG function %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, pgFunction.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -383,7 +421,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set trigger %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set trigger %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, pgTrigger.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -400,7 +438,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 			if !run {
 				continue
 			}
-			log.Info("transfer", fmt.Sprintf("set index %s", e.Id))
+			log.Info(log.ContextTransfer, fmt.Sprintf("set index %s", e.Id))
 
 			if err := importCheckResultAndApply(ctx, tx, pgIndex.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 				return err
@@ -417,7 +455,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set form %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set form %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, form.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -433,7 +471,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set login form %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set login form %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, loginForm.Set_tx(
 			ctx, tx, e.ModuleId, e.Id, e.AttributeIdLogin, e.AttributeIdLookup,
@@ -452,7 +490,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set menu tab %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set menu tab %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, menuTab.Set_tx(ctx, tx, i, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -468,7 +506,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set role %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set role %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, role.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -484,7 +522,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set JS function %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set JS function %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, jsFunction.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -501,7 +539,7 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 		if !run {
 			continue
 		}
-		log.Info("transfer", fmt.Sprintf("set client event %s", e.Id))
+		log.Info(log.ContextTransfer, fmt.Sprintf("set client event %s", e.Id))
 
 		if err := importCheckResultAndApply(ctx, tx, clientEvent.Set_tx(ctx, tx, e), e.Id, idMapSkipped); err != nil {
 			return err
@@ -522,13 +560,13 @@ func importModule_tx(ctx context.Context, tx pgx.Tx, mod types.Module, firstRun 
 			if !run {
 				continue
 			}
-			log.Info("transfer", fmt.Sprintf("set preset %s", e.Id))
+			log.Info(log.ContextTransfer, fmt.Sprintf("set preset %s", e.Id))
 
 			// special case
 			// presets can fail import because referenced, unprotected presets were deleted or unique constraints are broken
 			// if preset itself is unprotected, we try until the last loop and then give up
 			if lastRun && !e.Protected {
-				log.Info("transfer", "import failed to resolve unprotected preset until last loop, it will be ignored")
+				log.Info(log.ContextTransfer, "import failed to resolve unprotected preset until last loop, it will be ignored")
 				if err := importCheckResultAndApply(ctx, tx, nil, e.Id, idMapSkipped); err != nil {
 					return err
 				}
@@ -579,7 +617,7 @@ func importCheckResultAndApply(ctx context.Context, tx pgx.Tx, resultErr error, 
 	}
 
 	// error case
-	log.Info("transfer", fmt.Sprintf("skipped entity on this run, error: %s", resultErr))
+	log.Info(log.ContextTransfer, fmt.Sprintf("skipped entity on this run, error: %s", resultErr))
 
 	if _, err := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT transfer_import`); err != nil {
 		return err
@@ -594,7 +632,7 @@ func parseModulesFromPaths_tx(ctx context.Context, tx pgx.Tx, filePaths []string
 
 	modules := make([]types.Module, 0)
 
-	log.Info("transfer", fmt.Sprintf("import is parsing %d module files", len(filePaths)))
+	log.Info(log.ContextTransfer, fmt.Sprintf("import is parsing %d module files", len(filePaths)))
 
 	// read all modules from file paths
 	for _, filePath := range filePaths {
@@ -617,7 +655,7 @@ func parseModulesFromPaths_tx(ctx context.Context, tx pgx.Tx, filePaths []string
 		}
 		moduleId := fileData.Content.Module.Id
 
-		log.Info("transfer", fmt.Sprintf("import is validating module '%s' v%d",
+		log.Info(log.ContextTransfer, fmt.Sprintf("import is validating module '%s' v%d",
 			fileData.Content.Module.Name, fileData.Content.Module.ReleaseBuild))
 
 		// verify application compatibility
@@ -633,7 +671,7 @@ func parseModulesFromPaths_tx(ctx context.Context, tx pgx.Tx, filePaths []string
 			// check for newer version of installed module
 			if exModule.ReleaseBuild >= fileData.Content.Module.ReleaseBuild {
 
-				log.Info("transfer", fmt.Sprintf("import of module '%s' not required, same or newer version (%d -> %d) installed",
+				log.Info(log.ContextTransfer, fmt.Sprintf("import of module '%s' not required, same or newer version (%d -> %d) installed",
 					fileData.Content.Module.Name, exModule.ReleaseBuild,
 					fileData.Content.Module.ReleaseBuild))
 
@@ -647,7 +685,7 @@ func parseModulesFromPaths_tx(ctx context.Context, tx pgx.Tx, filePaths []string
 			}
 
 			if hashedStr == hashedStrEx {
-				log.Info("transfer", fmt.Sprintf("import of module '%s' not required, no changes",
+				log.Info(log.ContextTransfer, fmt.Sprintf("import of module '%s' not required, no changes",
 					fileData.Content.Module.Name))
 
 				continue
@@ -657,7 +695,7 @@ func parseModulesFromPaths_tx(ctx context.Context, tx pgx.Tx, filePaths []string
 		// check whether module was added previously (multiple import files used with similar modules)
 		if _, exists := moduleIdMapImportMeta[moduleId]; exists {
 			if moduleIdMapImportMeta[moduleId].module.ReleaseBuild >= fileData.Content.Module.ReleaseBuild {
-				log.Info("transfer", fmt.Sprintf("import of module '%s' not required, same or newer version (%d -> %d) to be added",
+				log.Info(log.ContextTransfer, fmt.Sprintf("import of module '%s' not required, same or newer version (%d -> %d) to be added",
 					fileData.Content.Module.Name, moduleIdMapImportMeta[moduleId].module.ReleaseBuild,
 					fileData.Content.Module.ReleaseBuild))
 
@@ -665,7 +703,7 @@ func parseModulesFromPaths_tx(ctx context.Context, tx pgx.Tx, filePaths []string
 			}
 		}
 
-		log.Info("transfer", fmt.Sprintf("import will install module '%s' v%d",
+		log.Info(log.ContextTransfer, fmt.Sprintf("import will install module '%s' v%d",
 			fileData.Content.Module.Name, fileData.Content.Module.ReleaseBuild))
 
 		moduleIdMapImportMeta[moduleId] = importMeta{
@@ -714,7 +752,7 @@ func parseModulesFromPaths_tx(ctx context.Context, tx pgx.Tx, filePaths []string
 		addModule(id)
 	}
 
-	log.Info("transfer", fmt.Sprintf("import has decided on installation order: %s",
+	log.Info(log.ContextTransfer, fmt.Sprintf("import has decided on installation order: %s",
 		strings.Join(moduleNames, ", ")))
 
 	return modules, nil

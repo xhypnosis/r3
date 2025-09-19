@@ -130,15 +130,19 @@ export function getNumberFormatted(v,atr) {
 		hasFraction = true;
 	}
 	
-	strNum = strNum.replace(/\B(?=(\d{3})+(?!\d))/g,MyStore.getters.settings.numberSepThousand);
+	strNum = strNum.replace(/\B(?=(\d{3})+(?!\d))/g,MyStore.getters.numberSepThousand);
 
 	return hasFraction
-		? strNum + MyStore.getters.settings.numberSepDecimal + strFraction
+		? strNum + MyStore.getters.numberSepDecimal + strFraction
 		: strNum;
 };
 
 export function getNilUuid() {
 	return '00000000-0000-0000-0000-000000000000';
+};
+
+export function getOrFallback(obj,name,fallbackValue) {
+	return obj?.[name] !== undefined ? JSON.parse(JSON.stringify(obj[name])) : fallbackValue;
 };
 
 export function isIdNilUuid(id) {
@@ -208,7 +212,15 @@ export function objectDeepMerge(target,...sources) {
 };
 
 export function openLink(href,blank) {
-	window.open(href,blank ? '_blank' : '_self');
+	// this method (compared to window.open()) allows for keeping in browser context
+	// important for PWA, to open new window in PWA style
+	const link  = document.createElement('a');
+	link.href   = href;
+	link.target = blank ? '_blank' : '_self';
+	link.rel    = 'noopener noreferrer';
+	document.body.appendChild(link);
+	link.click();
+	document.body.removeChild(link);
 };
 
 export function openDataImageAsNewTag(data) {

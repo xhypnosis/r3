@@ -8,7 +8,7 @@ import {MyModuleSelect}    from './input.js';
 import MyBuilderCaption    from './builder/builderCaption.js';
 export {MyCaptionMap as default};
 
-let MyCaptionMapTransfer = {
+const MyCaptionMapTransfer = {
 	name:'my-caption-map-transfer',
 	template:`<div class="app-sub-window under-header" @mousedown.self="close">
 		<div class="contentBox float">
@@ -159,7 +159,7 @@ let MyCaptionMapTransfer = {
 	}
 };
 
-let MyCaptionMapNewLanguage = {
+const MyCaptionMapNewLanguage = {
 	name:'my-caption-map-new-language',
 	template:`<div class="app-sub-window under-header" @mousedown.self="close">
 		<div class="contentBox float">
@@ -229,7 +229,7 @@ let MyCaptionMapNewLanguage = {
 	}
 };
 
-let MyCaptionMapItemValue = {
+const MyCaptionMapItemValue = {
 	name:'my-caption-map-item-value',
 	components:{ MyBuilderCaption },
 	template:`<td>
@@ -288,7 +288,7 @@ let MyCaptionMapItemValue = {
 	}
 };
 
-let MyCaptionMapItem = {
+const MyCaptionMapItem = {
 	name:'my-caption-map-item',
 	components:{ MyCaptionMapItemValue },
 	template:`<tr>
@@ -355,7 +355,7 @@ let MyCaptionMapItem = {
 	}
 };
 
-let MyCaptionMapItems = {
+const MyCaptionMapItems = {
 	name:'my-caption-map-items',
 	components:{ MyCaptionMapItem },
 	template:`<tr :class="{ 'sticky-row':show }">
@@ -401,7 +401,7 @@ let MyCaptionMapItems = {
 	}
 };
 
-let MyCaptionMap = {
+const MyCaptionMap = {
 	name:'my-caption-map',
 	components:{
 		MyCaptionMapItems,
@@ -584,6 +584,17 @@ let MyCaptionMap = {
 							:name="capGen.jsFunctions"
 							:readonly="readonly"
 						/>
+						<!-- search bars -->
+						<my-caption-map-items icon="search.png"
+							@update="storeChange"
+							:isCustom="isCustom"
+							:items="captionsSearchBars"
+							:languages="showLanguageCodes"
+							:languagesCustom="languagesCustom"
+							:levelMax="1"
+							:name="capGen.searchBars"
+							:readonly="readonly"
+						/>
 						<!-- collections -->
 						<my-caption-map-items icon="tray.png"
 							@update="storeChange"
@@ -637,7 +648,7 @@ let MyCaptionMap = {
 							:readonly="readonly"
 						/>
 						<!-- query choices -->
-						<my-caption-map-items icon="search.png"
+						<my-caption-map-items icon="filter.png"
 							@update="storeChange"
 							:isCustom="isCustom"
 							:items="captionsQueryChoices"
@@ -842,6 +853,24 @@ let MyCaptionMap = {
 			}
 			return out;
 		},
+		captionsSearchBars:(s) => {
+			let searchBarIdMap = {};
+			for(const bar of s.module.searchBars) {
+				let childCaptions = [];
+				for(const col of bar.columns) {
+					if(s.captionMap.columnIdMap[col.id] !== undefined)
+						childCaptions.push(s.makeItem(col.id,s.getColumnTitle(col,s.moduleId),s.captionMap.columnIdMap[col.id],[]));
+				}
+				
+				if(childCaptions.length !== 0 || s.captionMap.searchBarIdMap[bar.id] !== undefined)
+					searchBarIdMap[bar.id] = childCaptions;
+			}
+			let out = [];
+			for(const id in searchBarIdMap) {
+				out.push(s.makeItem(id,s.searchBarIdMap[id].name,s.captionMap.searchBarIdMap[id],searchBarIdMap[id]));
+			}
+			return out.sort((a,b) => (a.name > b.name) ? 1 : -1);
+		},
 		
 		// simple
 		captionsArticles:   (s) => s.makeSortedItemList(s.captionMap.articleIdMap,s.articleIdMap),
@@ -869,6 +898,7 @@ let MyCaptionMap = {
 		pgFunctionIdMap:(s) => s.$store.getters['schema/pgFunctionIdMap'],
 		relationIdMap:  (s) => s.$store.getters['schema/relationIdMap'],
 		roleIdMap:      (s) => s.$store.getters['schema/roleIdMap'],
+		searchBarIdMap: (s) => s.$store.getters['schema/searchBarIdMap'],
 		widgetIdMap:    (s) => s.$store.getters['schema/widgetIdMap'],
 		capApp:         (s) => s.$store.getters.captions.captionMap,
 		capGen:         (s) => s.$store.getters.captions.generic,
